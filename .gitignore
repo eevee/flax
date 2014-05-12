@@ -1,0 +1,7 @@
+.*.sw*
+.sw*
+
+*.pyc
+__pycache__/
+
+/.ropeproject/
