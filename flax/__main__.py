@@ -2,7 +2,7 @@ from collections import deque
 
 import urwid
 
-from flax.fractor import MapCanvas
+from flax.fractor import generate_map
 from flax.map import Map
 
 PALETTE = [
@@ -97,9 +97,7 @@ class CellWidget(urwid.Widget):
     def __init__(self):
         super().__init__()
 
-        map_canvas = MapCanvas(20, 20)
-        map_canvas.draw_room(0, 0, 5, 5)
-        self.map = Map(map_canvas)
+        self.map = generate_map()
         self.canvas = CellCanvas(self.map)
 
         self.action_queue = self.map.player_action_queue = deque()
