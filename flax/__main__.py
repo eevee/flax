@@ -199,5 +199,18 @@ loop.screen.set_terminal_properties(
     bright_is_bold=False,
 )
 debug_widget.activate()
-loop.run()
-debug_widget.deactivate()
+try:
+    loop.run()
+except BaseException as e:
+    # Need to unhook sys.stderr BEFORE re-raising, or we'll never see the
+    # exception
+    debug_widget.deactivate()
+
+    # Also for some reason the exception just sort of vanishes unless we flush
+    # right here?
+    sys.stdout.flush()
+    sys.stderr.flush()
+
+    raise
+else:
+    debug_widget.deactivate()
