@@ -1,6 +1,9 @@
+from collections import deque
+
 import urwid
 
 from flax.fractor import MapCanvas
+from flax.map import Map
 
 PALETTE = [
     # (name, other)
@@ -50,27 +53,28 @@ class MainWidget(urwid.WidgetWrap):
 
 
 class CellCanvas(urwid.Canvas):
-    def __init__(self, map_canvas):
-        self.map_canvas = map_canvas
+    def __init__(self, map):
+        self.map = map
 
         super().__init__()
 
     def rows(self):
-        return self.map_canvas.height
+        return self.map.height
 
     def cols(self):
-        return self.map_canvas.width
+        return self.map.width
 
     def translated_coords(self, dx, dy):
         return None
 
     def content(self, trim_left=0, trim_top=0, cols=None, rows=None, attr=None):
-        for row in self.map_canvas.grid:
+        for row in self.map.rows:
             ret = []
             current_attr = None
             current_glyphs = []
-            for obj in row:
-                glyph, attr = obj.tmp_rendering
+            for tile in row:
+                obj = next(tile.things)
+                glyph, attr = obj.type.tmp_rendering
                 if current_attr != attr:
                     if current_glyphs:
                         ret.append((current_attr, None, ''.join(current_glyphs).encode('utf8')))
@@ -95,7 +99,10 @@ class CellWidget(urwid.Widget):
 
         map_canvas = MapCanvas(20, 20)
         map_canvas.draw_room(0, 0, 5, 5)
-        self.canvas = CellCanvas(map_canvas)
+        self.map = Map(map_canvas)
+        self.canvas = CellCanvas(self.map)
+
+        self.action_queue = self.map.player_action_queue = deque()
 
     def render(self, size, focus=False):
         comp = urwid.CompositeCanvas(urwid.SolidCanvas(' ', *size))
@@ -106,7 +113,24 @@ class CellWidget(urwid.Widget):
         if key == 'q':
             raise urwid.ExitMainLoop
 
-        return key
+        from flax.event import Walk
+        from flax.geometry import Direction
+        if key == 'up':
+            self.action_queue.append(Walk(self.map.player, Direction.up))
+        elif key == 'down':
+            self.action_queue.append(Walk(self.map.player, Direction.down))
+        elif key == 'left':
+            self.action_queue.append(Walk(self.map.player, Direction.left))
+        elif key == 'right':
+            self.action_queue.append(Walk(self.map.player, Direction.right))
+        else:
+            return key
+
+        # TODO this should eventually become self.world i think
+        # TODO also should probably use the event loop?  right?
+
+        self.map.advance()
+        self._invalidate()
 
 
 class WriteDetectingStream:
