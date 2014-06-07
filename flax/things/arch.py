@@ -43,6 +43,11 @@ class Thing:
         component = self._type.components[iface]
         return component(iface, self)
 
+    def isa(self, thing_type):
+        # TODO unclear how this will handle inherited properties, or if it ever
+        # needs to (well, surely we want e.g. Potion)
+        return self.type is thing_type
+
     @property
     def layer(self):
         return self.type.layer

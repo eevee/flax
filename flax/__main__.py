@@ -1,9 +1,10 @@
 from collections import deque
+import sys
 
 import urwid
 
 from flax.fractor import generate_map
-from flax.map import Map
+
 
 PALETTE = [
     # (name, other)
@@ -59,10 +60,10 @@ class CellCanvas(urwid.Canvas):
         super().__init__()
 
     def rows(self):
-        return self.map.height
+        return self.map.rect.height
 
     def cols(self):
-        return self.map.width
+        return self.map.rect.width
 
     def translated_coords(self, dx, dy):
         return None

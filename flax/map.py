@@ -2,39 +2,52 @@ from itertools import product
 from weakref import WeakKeyDictionary, ref
 
 from flax.geometry import Point
-from flax.things.arch import Thing, Layer, Player
+from flax.things.arch import CaveWall, Thing, Layer, Player
 
 
 class Map:
-    def __init__(self, map_canvas):
-        self.height = map_canvas.height
-        self.width = map_canvas.width
+    def __init__(self, size):
+        self.rect = size.to_rect(Point.origin())
 
         self.thing_positions = WeakKeyDictionary()
 
-        self.tiles = {}
-        for x, y in product(range(map_canvas.width), range(map_canvas.height)):
-            position = Point(x, y)
-            tile = self.tiles[position] = Tile(self, position)
-            self.place(Thing(map_canvas.grid[x][y]), position)
+        self.tiles = {
+            point: Tile(self, point)
+            for point in self.rect.iter_points()
+        }
 
-        # TODO hmm!  unclear how fractor would end up placing the player.  also
-        # there's no grid for items or critter yet, ahem.
-        # TODO maybe these shouldn't be directly assignable
-        self.player = Thing(Player)
-        self.place(self.player, Point(2, 2))
+    _player = None
+
+    @property
+    def player(self):
+        assert self._player is not None, "map is missing a player!"
+        return self._player
+
+    @player.setter
+    def player(self, value):
+        assert self._player is None, "trying to set player when we've already got one!"
+        self._player = value
+
+    @player.deleter
+    def player(self):
+        assert self._player is not None, "can't remove nonexistent player!"
+        del self._player
 
     @property
     def rows(self):
-        for y in range(self.height):
-            yield (self.tiles[x, y] for x in range(self.width))
+        for y in self.rect.range_height():
+            yield (self.tiles[Point(x, y)] for x in self.rect.range_width())
 
     def place(self, thing, position):
         assert thing not in self.thing_positions
         self.thing_positions[thing] = position
         self.tiles[position].attach(thing)
 
+        if thing.isa(Player):
+            self.player = thing
+
     def find(self, thing):
+        assert isinstance(thing, Thing)
         return self.thing_positions[thing]
 
     def move(self, thing, position):
@@ -50,10 +63,11 @@ class Map:
         position = self.thing_positions.pop(thing)
         self.tiles[position].detach(thing)
 
+        if thing.isa(Player):
+            del self.player
+
     def __contains__(self, position):
-        return (
-            0 <= position.x < self.width and
-            0 <= position.y < self.height)
+        return position in self.rect
 
 
     # XXX this stuff should all be on a world object XXX
@@ -74,6 +88,10 @@ class Tile:
     def __init__(self, map, position):
         self._map = ref(map)
         self.position = position
+        # TODO would like architecture to default to something (probably
+        # CaveWall) so a freshly-created Tile is cromulent, without having to
+        # create a new Thing on every Tile just to have it overwritten a moment
+        # later
         self.architecture = None
         self.creature = None
         self.items = []
