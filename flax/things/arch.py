@@ -155,6 +155,8 @@ class Solid(Component):
     # requiring a component implementation to respond to default events (and
     # perhaps even associating each event with a specific interface somehow)
     # would make this all make a bit more...  predictable
+    # TODO also seems like i should /require/ that every ThingType has a
+    # IPhysics, maybe others...
     @handler(Walk)
     def handle_walk(thing, event):
         event.cancel()
@@ -184,9 +186,11 @@ Floor = Architecture(
     tmp_rendering=('·', 'floor'))
 
 
-Creature = partial(ThingType, layer=Layer.creature)
+Creature = partial(ThingType, Solid, layer=Layer.creature)
 
 Player = Creature(tmp_rendering=('☻', 'player'))
+
+Salamango = Creature(tmp_rendering=(':', 'salamango'))
 
 
 

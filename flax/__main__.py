@@ -21,7 +21,7 @@ PALETTE = [
 
     # Creatures
     ('player', 'yellow', 'default', None, '#ff6', 'default'),
-    ('newt', 'yellow', 'default', None, '#ff6', 'default'),
+    ('salamango', 'brown', 'default', None, '#fa0', 'default'),
 
     # Items
     ('potion', 'light magenta', 'default', None, '#f6f', 'default'),

@@ -2,7 +2,7 @@ import random
 
 from flax.geometry import Point, Rectangle, Size
 from flax.map import Map
-from flax.things.arch import CaveWall, Wall, Floor, Player
+from flax.things.arch import CaveWall, Wall, Floor, Player, Salamango
 
 
 class MapCanvas:
@@ -60,8 +60,9 @@ class Fractor:
     def place_player(self):
         floor_points = list(self.map_canvas.find_floor_points())
         assert floor_points, "can't place player with no open spaces"
-        point = random.choice(floor_points)
-        self.map_canvas.creature_grid[point] = Player
+        points = random.sample(floor_points, 2)
+        self.map_canvas.creature_grid[points[0]] = Player
+        self.map_canvas.creature_grid[points[1]] = Salamango
 
 
 def generate_map():
