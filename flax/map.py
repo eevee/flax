@@ -84,13 +84,18 @@ class Map:
 
         # Perform a turn for everyone else
         from flax.things.arch import IActor
+        actors = []
         for tile in self.tiles.values():
             # TODO what if things other than creatures can think??  fuck
             if tile.creature:
-                action = IActor(tile.creature).act()
+                actors.append(tile.creature)
 
-                if action:
-                    self.fire_event(action)
+        # TODO should go in turn order
+        for actor in actors:
+            action = IActor(actor).act()
+
+            if action:
+                self.fire_event(action)
 
 
 
