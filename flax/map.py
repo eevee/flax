@@ -75,9 +75,23 @@ class Map:
     player_action_queue = None
 
     def advance(self):
+        # TODO this is all still bad for the same reasons as before: should
+        # include the player in the loop somehow, should take time into account
+        # for real
         if self.player_action_queue:
             player_action = self.player_action_queue.popleft()
             self.fire_event(player_action)
+
+        # Perform a turn for everyone else
+        from flax.things.arch import IActor
+        for tile in self.tiles.values():
+            # TODO what if things other than creatures can think??  fuck
+            if tile.creature:
+                action = IActor(tile.creature).act()
+
+                if action:
+                    self.fire_event(action)
+
 
 
     def fire_event(self, event):

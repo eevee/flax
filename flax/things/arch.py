@@ -40,7 +40,7 @@ class Thing:
         # z.i method called on an object to ask it to adapt itself to some
         # interface
         # TODO handle keyerror?  or don't?
-        component = self._type.components[iface]
+        component = self.type.components[iface]
         return component(iface, self)
 
     def isa(self, thing_type):
@@ -173,6 +173,33 @@ class Empty(Component):
         pass
 
 
+class IActor(IComponent):
+    """Implements an entity's active thought process.  An entity with an
+    `IActor` component can decide to perform actions on its own, and has a
+    sense of speed and time.
+    """
+    def act():
+        """Return an action to be performed (i.e., an `Event` to be fired), or
+        `None` to do nothing.
+        it.
+        """
+
+
+@zi.implementer(IActor)
+class GenericAI(Component):
+    def act(self):
+        from flax.geometry import Direction
+        from flax.event import Walk
+        import random
+        return Walk(self.entity, random.choice(list(Direction)))
+
+
+@zi.implementer(IActor)
+class PlayerIntelligence(Component):
+    def act(self):
+        return None
+
+
 Architecture = partial(ThingType, layer=Layer.architecture)
 
 CaveWall = Architecture(
@@ -188,9 +215,9 @@ Floor = Architecture(
 
 Creature = partial(ThingType, Solid, layer=Layer.creature)
 
-Player = Creature(tmp_rendering=('☻', 'player'))
+Player = Creature(PlayerIntelligence, tmp_rendering=('☻', 'player'))
 
-Salamango = Creature(tmp_rendering=(':', 'salamango'))
+Salamango = Creature(GenericAI, tmp_rendering=(':', 'salamango'))
 
 
 
