@@ -12,7 +12,8 @@ class Event:
 
         self.default_behavior(map)
 
-        # TODO bubble-out behavior too
+        # TODO bubble-out behavior too, so e.g. traps can respond /after/
+        # success
 
     def cancel(self):
         self.cancelled = True

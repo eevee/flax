@@ -59,6 +59,10 @@ class Rectangle(tuple):
     def __new__(cls, origin, size):
         return super().__new__(cls, (origin, size))
 
+    @classmethod
+    def from_edges(cls, *, top, bottom, left, right):
+        return cls(Point(left, top), Size(right - left + 1, bottom - top + 1))
+
     @property
     def topleft(self):
         return self[0]
@@ -106,6 +110,23 @@ class Rectangle(tuple):
             )
         else:
             return False
+
+    def adjust(self, *, top=None, bottom=None, left=None, right=None):
+        if top is None:
+            top = self.top
+        if bottom is None:
+            bottom = self.bottom
+        if left is None:
+            left = self.left
+        if right is None:
+            right = self.right
+
+        return type(self).from_edges(
+            top=top,
+            bottom=bottom,
+            left=left,
+            right=right,
+        )
 
     def iter_points(self):
         """Iterate over all tiles within this rectangle as points."""
