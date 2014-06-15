@@ -2,7 +2,7 @@ import random
 
 from flax.geometry import Point, Rectangle, Size
 from flax.map import Map
-from flax.things.arch import CaveWall, Wall, Floor, Player, Salamango
+from flax.things.arch import CaveWall, Wall, Floor, Tree, Grass, CutGrass, Dirt, Player, Salamango
 
 
 class MapCanvas:
@@ -17,7 +17,7 @@ class MapCanvas:
         assert rect in self.rect
 
         for point in rect.iter_points():
-            self.arch_grid[point] = Floor
+            self.arch_grid[point] = random.choice([Floor, CutGrass, CutGrass, Grass])
 
         # Top and bottom
         for x in rect.range_width():
@@ -166,11 +166,37 @@ class BinaryPartitionFractor(Fractor):
         ]
 
 
+class PerlinFractor(Fractor):
+    def draw_something_something_rename_me(self):
+        from flax.noise import discrete_perlin_noise_factory
+        noise = discrete_perlin_noise_factory(*self.region.size, resolution=4, octaves=4)
+        for point in self.region.iter_points():
+            n = noise(*point)
+            if n < 0.2:
+                arch = Floor
+            elif n < 0.4:
+                arch = Dirt
+            elif n < 0.6:
+                arch = CutGrass
+            elif n < 0.8:
+                arch = Grass
+            else:
+                arch = Tree
+            self.map_canvas.arch_grid[point] = arch
 
 
 def generate_map():
     map_canvas = MapCanvas(Size(80, 24))
 
+    perlin_fractor = PerlinFractor(map_canvas)
+    perlin_fractor.draw_something_something_rename_me()
+
+    fractor = Fractor(map_canvas)
+    fractor.place_player()
+    return map_canvas.to_map()
+
+    # TODO probably need to start defining different map generation schemes and
+    # figure out how to let the world choose which one it wants
     bsp_fractor = BinaryPartitionFractor(map_canvas, minimum_size=Size(8, 8))
     regions = bsp_fractor.maximally_partition()
 

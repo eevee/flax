@@ -211,6 +211,18 @@ Wall = Architecture(
 Floor = Architecture(
     Empty,
     tmp_rendering=('·', 'floor'))
+Tree = Architecture(
+    Solid,
+    tmp_rendering=('↟', 'grass'))
+Grass = Architecture(
+    Empty,
+    tmp_rendering=('ʬ', 'grass'))
+CutGrass = Architecture(
+    Empty,
+    tmp_rendering=('░', 'grass'))
+Dirt = Architecture(
+    Empty,
+    tmp_rendering=('░', 'dirt'))
 
 
 Creature = partial(ThingType, Solid, layer=Layer.creature)

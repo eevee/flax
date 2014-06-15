@@ -18,6 +18,8 @@ PALETTE = [
 
     # Architecture
     ('floor', 'black', 'default', None, '#666', 'default'),
+    ('grass', 'dark green', 'default', None, '#060', 'default'),
+    ('dirt', 'brown', 'default', None, '#960', 'default'),
 
     # Creatures
     ('player', 'yellow', 'default', None, '#ff6', 'default'),
@@ -105,6 +107,8 @@ class CellWidget(urwid.Widget):
 
     def render(self, size, focus=False):
         comp = urwid.CompositeCanvas(urwid.SolidCanvas(' ', *size))
+        # TODO this needs trimming if `size` is too small to show the whole
+        # map.  that's sort of a problem in general really.
         comp.overlay(urwid.CompositeCanvas(self.canvas), 1, 1)
         return comp
 
