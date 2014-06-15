@@ -169,7 +169,7 @@ class BinaryPartitionFractor(Fractor):
 class PerlinFractor(Fractor):
     def draw_something_something_rename_me(self):
         from flax.noise import discrete_perlin_noise_factory
-        noise = discrete_perlin_noise_factory(*self.region.size, resolution=4, octaves=4)
+        noise = discrete_perlin_noise_factory(*self.region.size, resolution=4, octaves=2)
         for point in self.region.iter_points():
             n = noise(*point)
             if n < 0.2:

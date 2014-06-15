@@ -3,7 +3,7 @@ import sys
 
 import urwid
 
-from flax.fractor import generate_map
+from flax.world import World
 
 
 PALETTE = [
@@ -97,13 +97,11 @@ class CellWidget(urwid.Widget):
     _sizing = {'box'}
     _selectable = True
 
-    def __init__(self):
+    def __init__(self, world):
         super().__init__()
 
-        self.map = generate_map()
-        self.canvas = CellCanvas(self.map)
-
-        self.action_queue = self.map.player_action_queue = deque()
+        self.world = world
+        self.canvas = CellCanvas(world.current_map)
 
     def render(self, size, focus=False):
         comp = urwid.CompositeCanvas(urwid.SolidCanvas(' ', *size))
@@ -119,20 +117,22 @@ class CellWidget(urwid.Widget):
         from flax.event import Walk
         from flax.geometry import Direction
         if key == 'up':
-            self.action_queue.append(Walk(self.map.player, Direction.up))
+            event = Walk(self.world.player, Direction.up)
         elif key == 'down':
-            self.action_queue.append(Walk(self.map.player, Direction.down))
+            event = Walk(self.world.player, Direction.down)
         elif key == 'left':
-            self.action_queue.append(Walk(self.map.player, Direction.left))
+            event = Walk(self.world.player, Direction.left)
         elif key == 'right':
-            self.action_queue.append(Walk(self.map.player, Direction.right))
+            event = Walk(self.world.player, Direction.right)
         else:
             return key
+
+        self.world.push_player_action(event)
 
         # TODO this should eventually become self.world i think
         # TODO also should probably use the event loop?  right?
 
-        self.map.advance()
+        self.world.advance()
         self._invalidate()
 
 
@@ -192,9 +192,10 @@ class DebugWidget(urwid.ListBox):
         return super().render(*a, **kw)
 
 
+world = World()
 debug_widget = DebugWidget()
 main_widget = urwid.Pile([
-    CellWidget(),
+    CellWidget(world),
     debug_widget,
 ])
 loop = urwid.MainLoop(main_widget, PALETTE)
