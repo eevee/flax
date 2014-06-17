@@ -6,7 +6,7 @@ from flax.fractor import generate_map
 class World:
     """The world.  Contains the core implementations of event handling and
     player action handling.  Eventually will control loading/saving, generating
-    new maps, inter-map movement, and the like.
+    new maps, inter-map movement, gameplay configuration, and the like.
     """
     def __init__(self):
         # TODO how to store the maps, to make looking through them a little
@@ -22,6 +22,23 @@ class World:
 
     def push_player_action(self, event):
         self.player_action_queue.append(event)
+
+    def player_action_from_direction(self, direction):
+        """Given a `Direction`, figure out what action the player probably
+        intends to make in that direction.  i.e., if the space ahead of the
+        player is empty, return `Walk`.
+        """
+        from flax.event import Walk, MeleeAttack
+
+        # TODO i sure do this a lot!  maybe write a method for it!  also why
+        # does find() return a position and not a tile
+        new_pos = self.current_map.find(self.player) + direction
+        tile = self.current_map.tiles[new_pos]
+
+        if tile.creature:
+            return MeleeAttack(self.player, direction)
+        else:
+            return Walk(self.player, direction)
 
     def advance(self):
         # TODO this is all still bad for the same reasons as before: should

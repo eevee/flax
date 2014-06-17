@@ -117,13 +117,13 @@ class CellWidget(urwid.Widget):
         from flax.event import Walk
         from flax.geometry import Direction
         if key == 'up':
-            event = Walk(self.world.player, Direction.up)
+            event = self.world.player_action_from_direction(Direction.up)
         elif key == 'down':
-            event = Walk(self.world.player, Direction.down)
+            event = self.world.player_action_from_direction(Direction.down)
         elif key == 'left':
-            event = Walk(self.world.player, Direction.left)
+            event = self.world.player_action_from_direction(Direction.left)
         elif key == 'right':
-            event = Walk(self.world.player, Direction.right)
+            event = self.world.player_action_from_direction(Direction.right)
         else:
             return key
 

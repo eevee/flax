@@ -173,6 +173,20 @@ class Empty(Component):
         pass
 
 
+class ICombatant(IComponent):
+    """Implements an entity's ability to fight and take damage."""
+    health = zi.Attribute("""Entity's health meter.""")
+
+
+@zi.implementer(ICombatant)
+class Combatant(Component):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # TODO i have zero idea how this will work ever
+        self.health = 10
+
+
+
 class IActor(IComponent):
     """Implements an entity's active thought process.  An entity with an
     `IActor` component can decide to perform actions on its own, and has a
@@ -225,7 +239,7 @@ Dirt = Architecture(
     tmp_rendering=('░', 'dirt'))
 
 
-Creature = partial(ThingType, Solid, layer=Layer.creature)
+Creature = partial(ThingType, Solid, Combatant, layer=Layer.creature)
 
 Player = Creature(PlayerIntelligence, tmp_rendering=('☻', 'player'))
 
