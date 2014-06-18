@@ -15,6 +15,7 @@ class World:
         self.current_map = self.maps[0]
 
         self.player_action_queue = deque()
+        self.event_queue = deque()
 
     @property
     def player(self):
@@ -48,7 +49,8 @@ class World:
         # for real
         if self.player_action_queue:
             player_action = self.player_action_queue.popleft()
-            self.fire_event(player_action)
+            self.queue_event(player_action)
+            self.drain_event_queue()
 
         # Perform a turn for everyone else
         from flax.things.arch import IActor
@@ -63,7 +65,17 @@ class World:
             action = IActor(actor).act()
 
             if action:
-                self.fire_event(action)
+                self.queue_event(action)
 
-    def fire_event(self, event):
-        event.fire(self.current_map)
+            self.drain_event_queue()
+
+    def drain_event_queue(self):
+        while self.event_queue:
+            event = self.event_queue.popleft()
+            event.fire(self, self.current_map)
+
+    def queue_event(self, event):
+        self.event_queue.append(event)
+
+    def queue_immediate_event(self, event):
+        self.event_queue.appendleft(event)

@@ -1,7 +1,10 @@
 class Event:
+    cancelable = True
     cancelled = False
 
-    def fire(self, map):
+    def fire(self, world, map):
+        self.world = world
+
         if not self.is_valid(map):
             return
 
@@ -12,10 +15,8 @@ class Event:
 
         self.default_behavior(map)
 
-        # TODO bubble-out behavior too, so e.g. traps can respond /after/
-        # success
-
     def cancel(self):
+        assert self.cancelable
         self.cancelled = True
 
     def is_valid(self, map):
@@ -74,3 +75,45 @@ class MeleeAttack(Event):
 
     def default_behavior(self, map):
         print("{0} hits {1}".format(self.actor, self.find_targets(map)))
+
+        # TODO yeahhh uh this should probably like.  not need to be called
+        # twice?  maybe pass them in?
+        for target in self.find_targets(map):
+            # TODO what's the amount
+            self.world.queue_immediate_event(Damage(target, 5))
+
+
+class Damage(Event):
+    cancelable = False
+
+    def __init__(self, target, amount):
+        self.target = target
+        self.amount = amount
+
+    def find_targets(self, map):
+        return [self.target]
+
+    def default_behavior(self, map):
+        from flax.things.arch import ICombatant
+        ICombatant(self.target).damage(self.amount)
+
+        # XXX this should really be in damage() but there's no access to the
+        # world from there
+        if ICombatant(self.target).health <= 0:
+            self.world.queue_immediate_event(Die(self.target))
+
+
+class Die(Event):
+    cancelable = False
+
+    def __init__(self, target):
+        self.target = target
+
+    def find_targets(self, map):
+        return [self.target]
+
+    def default_behavior(self, map):
+        # TODO player death is different; probably raise an exception
+        print("{} has died".format(self.target))
+        map.remove(self.target)
+        # TODO and drop inventory, and/or a corpse

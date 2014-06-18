@@ -35,6 +35,7 @@ class ThingType:
 class Thing:
     def __init__(self, type):
         self.type = type
+        self.component_data = {}
 
     def __conform__(self, iface):
         # z.i method called on an object to ask it to adapt itself to some
@@ -106,22 +107,39 @@ class ComponentMeta(type):
         return super().__new__(meta, name, bases, attrs)
 
 
+class ComponentAttribute:
+    def __init__(desc, zope_attribute, initializer):
+        desc.zope_attribute = zope_attribute
+        desc.initializer = initializer
+
+    def __get__(desc, self, cls):
+        if self is None:
+            return desc
+
+        # TODO how does this get set initially, though...
+        attr = desc.zope_attribute
+        data = self.entity.component_data
+
+        if attr not in data:
+            data[attr] = desc.initializer(self)
+
+        return data[attr]
+
+    def __set__(desc, self, value):
+        self.entity.component_data[desc.zope_attribute] = value
+
+
+def attribute(iface):
+    def decorator(f):
+        return ComponentAttribute(iface[f.__name__], f)
+    return decorator
+
+
 @zi.implementer(IComponent)
 class Component(metaclass=ComponentMeta):
     def __init__(self, iface, entity):
         self.iface = iface
         self.entity = entity
-
-    def __getattr__(self, key):
-        # TODO keyerror?  or let it raise?
-        attr = self.iface[key]
-        if isinstance(attr, zi.interface.Method):
-            raise AttributeError("missing method??")
-        elif isinstance(attr, zi.Attribute):
-            return self.entity._component_data[attr]
-        else:
-            # TODO ???  can this happen.  also are there other Attributes
-            raise AttributeError("wat")
 
     def handle_event(self, thing, event):
         # TODO seems a bit odd that we're receiving the actual Thing here
@@ -177,13 +195,27 @@ class ICombatant(IComponent):
     """Implements an entity's ability to fight and take damage."""
     health = zi.Attribute("""Entity's health meter.""")
 
+    def damage(amount):
+        """Take damage.
+
+        Don't override this to respond to damage; handle the Damage event
+        instead.
+        """
+
 
 @zi.implementer(ICombatant)
 class Combatant(Component):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # TODO i have zero idea how this will work ever
-        self.health = 10
+
+    @attribute(ICombatant)
+    def health(self):
+        return 10
+
+    def damage(self, amount):
+        self.health -= amount
+        # XXX uhhhh how do i fire events from arbitrary places goddammit
+
 
 
 
