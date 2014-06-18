@@ -33,6 +33,8 @@ class World:
         # TODO i sure do this a lot!  maybe write a method for it!  also why
         # does find() return a position and not a tile
         new_pos = self.current_map.find(self.player) + direction
+        if new_pos not in self.current_map:
+            return None
         tile = self.current_map.tiles[new_pos]
 
         if tile.creature:

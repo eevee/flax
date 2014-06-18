@@ -104,11 +104,11 @@ class CellWidget(urwid.Widget):
         self.canvas = CellCanvas(world.current_map)
 
     def render(self, size, focus=False):
-        comp = urwid.CompositeCanvas(urwid.SolidCanvas(' ', *size))
-        # TODO this needs trimming if `size` is too small to show the whole
-        # map.  that's sort of a problem in general really.
-        comp.overlay(urwid.CompositeCanvas(self.canvas), 1, 1)
-        return comp
+        cols, rows = size
+        map_canvas = urwid.CompositeCanvas(self.canvas)
+        map_canvas.pad_trim_left_right(0, cols - self.canvas.cols())
+        map_canvas.pad_trim_top_bottom(0, rows - self.canvas.rows())
+        return map_canvas
 
     def keypress(self, size, key):
         if key == 'q':
@@ -127,7 +127,8 @@ class CellWidget(urwid.Widget):
         else:
             return key
 
-        self.world.push_player_action(event)
+        if event:
+            self.world.push_player_action(event)
 
         # TODO this should eventually become self.world i think
         # TODO also should probably use the event loop?  right?
