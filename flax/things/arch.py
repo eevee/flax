@@ -172,7 +172,9 @@ class Solid(Component):
     # obviously there should be support for exceptions, but i feel like
     # requiring a component implementation to respond to default events (and
     # perhaps even associating each event with a specific interface somehow)
-    # would make this all make a bit more...  predictable
+    # would make this all make a bit more...  predictable.  and i think that
+    # would make the semantics a little better: most events are, in a way,
+    # really just calls to component methods that other things can twiddle
     # TODO also seems like i should /require/ that every ThingType has a
     # IPhysics, maybe others...
     @handler(Walk)
@@ -195,6 +197,8 @@ class ICombatant(IComponent):
     """Implements an entity's ability to fight and take damage."""
     health = zi.Attribute("""Entity's health meter.""")
 
+    strength = zi.Attribute("""Generic placeholder stat while I figure stuff out.""")
+
     def damage(amount):
         """Take damage.
 
@@ -212,6 +216,10 @@ class Combatant(Component):
     def health(self):
         return 10
 
+    @property
+    def strength(self):
+        return 3
+
     def damage(self, amount):
         self.health -= amount
         # XXX uhhhh how do i fire events from arbitrary places goddammit
@@ -224,7 +232,7 @@ class IActor(IComponent):
     `IActor` component can decide to perform actions on its own, and has a
     sense of speed and time.
     """
-    def act():
+    def act(world):
         """Return an action to be performed (i.e., an `Event` to be fired), or
         `None` to do nothing.
         it.
@@ -233,17 +241,26 @@ class IActor(IComponent):
 
 @zi.implementer(IActor)
 class GenericAI(Component):
-    def act(self):
+    def act(self, world):
         from flax.geometry import Direction
         from flax.event import Walk
+        from flax.event import MeleeAttack
         import random
-        return Walk(self.entity, random.choice(list(Direction)))
+        pos = world.current_map.find(self.entity)
+        player_pos = world.current_map.find(world.player)
+        for direction in Direction:
+            if pos + direction == player_pos:
+                world.queue_event(MeleeAttack(self.entity, direction))
+                return
+
+        # TODO try to walk towards player
+        world.queue_event(Walk(self.entity, random.choice(list(Direction))))
 
 
 @zi.implementer(IActor)
 class PlayerIntelligence(Component):
-    def act(self):
-        return None
+    def act(self, world):
+        pass
 
 
 Architecture = partial(ThingType, layer=Layer.architecture)
@@ -281,7 +298,6 @@ Salamango = Creature(GenericAI, tmp_rendering=(':', 'salamango'))
 
 Item = partial(ThingType, layer=Layer.item)
 
-
 class IUsable(IComponent):
     def use():
         pass
@@ -293,3 +309,34 @@ class UsablePotion(Component):
         return effect.Heal()
 
 #potion = Item(UsablePotion, name="potion")
+
+
+
+class IEquipment(IComponent):
+    pass
+
+"""
+@zi.implementer(IEquipment)
+class Equipment(Component):
+    @handle_event(Equip)
+    def handle_equip(self, event):
+        pass
+
+    @handle_event(Unequip)
+    def handle_unequip(self, event):
+        pass
+
+    @handle_event(Damage, on=wearer)
+    def handle_wearer_damage(self, event):
+
+Armor = Item(Equipment, tmp_rendering=('[', 'default'))
+"""
+
+# TODO
+# - figure out the role of a component.  if we're mostly doing message/event
+# passing, what code does a component actually need to have?
+# - how do values work?  how do modifiers and other effects work?
+# - implement...
+#       armor that reduces damage by half
+#       forestwalk
+#       basic stats

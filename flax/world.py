@@ -62,11 +62,7 @@ class World:
 
         # TODO should go in turn order
         for actor in actors:
-            action = IActor(actor).act()
-
-            if action:
-                self.queue_event(action)
-
+            IActor(actor).act(self)
             self.drain_event_queue()
 
     def drain_event_queue(self):

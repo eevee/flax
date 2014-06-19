@@ -1,3 +1,12 @@
+from enum import Enum
+
+
+class EventListenerTarget(Enum):
+    self = 'self'
+    wearer = 'wearer'
+    owner = 'owner'
+
+
 class Event:
     cancelable = True
     cancelled = False

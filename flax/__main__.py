@@ -134,6 +134,31 @@ class CellWidget(urwid.Widget):
         # TODO also should probably use the event loop?  right?
 
         self.world.advance()
+
+        # TODO this is terrible
+        status_widget.update()
+
+        self._invalidate()
+
+
+class PlayerStatusWidget(urwid.Pile):
+    def __init__(self, player):
+        self.player = player
+
+        self.health_text = urwid.Text("Health: ???")
+        self.strength_text = urwid.Text("Health: ???")
+
+        super().__init__([
+            urwid.Filler(self.health_text),
+            urwid.Filler(self.strength_text),
+        ])
+
+        self.update()
+
+    def update(self):
+        from flax.things.arch import ICombatant
+        self.health_text.set_text("Health: {}".format(ICombatant(self.player).health))
+        self.strength_text.set_text("Strength: {}".format(ICombatant(self.player).strength))
         self._invalidate()
 
 
@@ -195,8 +220,12 @@ class DebugWidget(urwid.ListBox):
 
 world = World()
 debug_widget = DebugWidget()
+status_widget = PlayerStatusWidget(world.player)
 main_widget = urwid.Pile([
-    CellWidget(world),
+    urwid.Columns([
+        CellWidget(world),
+        status_widget,
+    ]),
     debug_widget,
 ])
 loop = urwid.MainLoop(main_widget, PALETTE)
