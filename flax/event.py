@@ -59,6 +59,39 @@ class Walk(Event):
         map.move(self.actor, new_pos)
 
 
+class PickUpAll(Event):
+    # XXX this is temporary; it should really be "pick up a list of items", but
+    # that requires UI which doesn't exist yet
+    def __init__(self, actor, position):
+        self.actor = actor
+        self.position = position
+
+    def is_valid(self, map):
+        return self.position in map and map.find(self.actor) == self.position
+
+    def find_targets(self, map):
+        tile = map.tiles[self.position]
+        return tile.items
+
+    def default_behavior(self, map):
+        self.world.queue_event(PickingUp(self.actor, self.find_targets(map)))
+
+
+class PickingUp(Event):
+    # XXX this is temporary; it should really be "pick up a list of items", but
+    # that requires UI which doesn't exist yet
+    def __init__(self, actor, items):
+        self.actor = actor
+        self.items = items
+
+    def find_targets(self, map):
+        return [self.actor]
+
+    def default_behavior(self, map):
+        pass
+
+
+
 class MeleeAttack(Event):
     def __init__(self, actor, direction):
         # TODO a direction makes sense at a glance here since that's generally

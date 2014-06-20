@@ -1,4 +1,5 @@
 from collections import deque
+from itertools import islice
 import sys
 
 import urwid
@@ -71,11 +72,11 @@ class CellCanvas(urwid.Canvas):
         return None
 
     def content(self, trim_left=0, trim_top=0, cols=None, rows=None, attr=None):
-        for row in self.map.rows:
+        for row in islice(self.map.rows, trim_top, rows):
             ret = []
             current_attr = None
             current_glyphs = []
-            for tile in row:
+            for tile in islice(row, trim_left, cols):
                 obj = next(tile.things)
                 glyph, attr = obj.type.tmp_rendering
                 if current_attr != attr:
@@ -111,11 +112,14 @@ class CellWidget(urwid.Widget):
         return map_canvas
 
     def keypress(self, size, key):
+        # TODO why is this not on the top-level widget whoops?
         if key == 'q':
             raise urwid.ExitMainLoop
 
         from flax.event import Walk
+        from flax.event import PickUpAll
         from flax.geometry import Direction
+        event = None
         if key == 'up':
             event = self.world.player_action_from_direction(Direction.up)
         elif key == 'down':
@@ -124,6 +128,8 @@ class CellWidget(urwid.Widget):
             event = self.world.player_action_from_direction(Direction.left)
         elif key == 'right':
             event = self.world.player_action_from_direction(Direction.right)
+        elif key == ',':
+            event = PickUpAll(self.world.player, self.world.current_map.find(self.world.player))
         else:
             return key
 
@@ -136,7 +142,7 @@ class CellWidget(urwid.Widget):
         self.world.advance()
 
         # TODO this is terrible
-        status_widget.update()
+        widget.status_widget.update()
 
         self._invalidate()
 
@@ -160,6 +166,24 @@ class PlayerStatusWidget(urwid.Pile):
         self.health_text.set_text("Health: {}".format(ICombatant(self.player).health))
         self.strength_text.set_text("Strength: {}".format(ICombatant(self.player).strength))
         self._invalidate()
+
+
+class InventoryMenu(urwid.ListBox):
+    signals = ['close']
+
+    def __init__(self, player):
+        walker = urwid.SimpleListWalker([])
+        super().__init__(walker)
+
+        from flax.things.arch import IContainer
+        for item in IContainer(player).inventory:
+            self.body.append(urwid.Text(repr(item)))
+
+    def keypress(self, size, key):
+        if key == 'esc':
+            self._emit('close')
+
+        return key
 
 
 class WriteDetectingStream:
@@ -218,29 +242,108 @@ class DebugWidget(urwid.ListBox):
         return super().render(*a, **kw)
 
 
+class ToggleableOverlay(urwid.Overlay):
+    """An Overlay where the top widget can be swapped out or hidden entirely.
+
+    If the top widget is removed, focus passes to the bottom widget.
+    """
+    def __init__(self, bottom_w):
+        # TODO uhh what are good defaults??
+        super().__init__(None, bottom_w, align='center', width=('relative', 90), valign='middle', height=('relative', 90))
+
+    def selectable(self):
+        return self.focus.selectable()
+
+    def keypress(self, size, key):
+        if self.top_w:
+            return super().keypress(size, key)
+        else:
+            return self.bottom_w.keypress(size, key)
+
+    @property
+    def focus(self):
+        if self.top_w:
+            return self.top_w
+        else:
+            return self.bottom_w
+
+    @property
+    def focus_position(self):
+        if self.top_w:
+            return 1
+        else:
+            return 0
+
+    @focus_position.setter
+    def focus_position(self, position):
+        if position == 0:
+            self.top_w = None
+        else:
+            super().focus_position = position
+
+    # TODO override `contents` to return a 1-element thing
+
+    def render(self, size, focus=False):
+        if self.top_w:
+            return super().render(size, focus)
+        else:
+            return self.bottom_w.render(size, focus)
+
+
+class FlaxWidget(urwid.WidgetWrap):
+    def __init__(self, world):
+        self.world = world
+
+        self.status_widget = PlayerStatusWidget(world.player)
+        self.debug_widget = DebugWidget()
+
+        main_widget = urwid.Pile([
+            urwid.Columns([
+                CellWidget(world),
+                self.status_widget,
+                (0, urwid.SolidFill('x')),
+            ]),
+            self.debug_widget,
+        ])
+
+        self.overlay = ToggleableOverlay(main_widget)
+
+        super().__init__(self.overlay)
+
+    def keypress(self, size, key):
+        key = super().keypress(size, key)
+        if not key:
+            return
+
+        # TODO this should go on the main screen, not the top level, so when
+        # a menu is open keys don't get here
+        if key == 'i':
+            inventory = InventoryMenu(self.world.player)
+            def close(widget):
+                self.overlay.top_w = None
+                self.overlay._invalidate()
+            urwid.connect_signal(inventory, 'close', close)
+            self.overlay.top_w = inventory
+            self.overlay._invalidate()
+        else:
+            return key
+
+
 world = World()
-debug_widget = DebugWidget()
-status_widget = PlayerStatusWidget(world.player)
-main_widget = urwid.Pile([
-    urwid.Columns([
-        CellWidget(world),
-        status_widget,
-    ]),
-    debug_widget,
-])
-loop = urwid.MainLoop(main_widget, PALETTE)
+widget = FlaxWidget(world)
+loop = urwid.MainLoop(widget, PALETTE)
 # TODO upstream detection for these?
 loop.screen.set_terminal_properties(
     colors=256,
     bright_is_bold=False,
 )
-debug_widget.activate()
+widget.debug_widget.activate()
 try:
     loop.run()
 except BaseException as e:
     # Need to unhook sys.stderr BEFORE re-raising, or we'll never see the
     # exception
-    debug_widget.deactivate()
+    widget.debug_widget.deactivate()
 
     # Also for some reason the exception just sort of vanishes unless we flush
     # right here?
@@ -249,4 +352,4 @@ except BaseException as e:
 
     raise
 else:
-    debug_widget.deactivate()
+    widget.debug_widget.deactivate()

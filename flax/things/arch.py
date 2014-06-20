@@ -182,6 +182,29 @@ class Solid(Component):
         event.cancel()
 
 
+class IContainer(IComponent):
+    inventory = zi.Attribute("""Items contained by this container.""")
+
+
+from flax.event import PickingUp
+
+@zi.implementer(IContainer)
+class Container(Component):
+    @attribute(IContainer)
+    def inventory(self):
+        return []
+
+    # TODO maybe "actor" could just be an event target, and we'd need fewer
+    # duplicate events for the source vs the target?
+    @handler(PickingUp)
+    def handle_picking_up(self, event):
+        print("ooh picking up", event.items)
+        for item in event.items:
+            assert item.layer is Layer.item
+            event.world.current_map.remove(item)
+            IContainer(self).inventory.append(item)
+
+
 
 @zi.implementer(IPhysics)
 class Empty(Component):
@@ -288,7 +311,7 @@ Dirt = Architecture(
     tmp_rendering=('░', 'dirt'))
 
 
-Creature = partial(ThingType, Solid, Combatant, layer=Layer.creature)
+Creature = partial(ThingType, Solid, Combatant, Container, layer=Layer.creature)
 
 Player = Creature(PlayerIntelligence, tmp_rendering=('☻', 'player'))
 
@@ -315,22 +338,21 @@ class UsablePotion(Component):
 class IEquipment(IComponent):
     pass
 
-"""
 @zi.implementer(IEquipment)
 class Equipment(Component):
-    @handle_event(Equip)
-    def handle_equip(self, event):
-        pass
+    #@handler(Equip)
+    #def handle_equip(self, event):
+    #    pass
+    #
+    #@handler(Unequip)
+    #def handle_unequip(self, event):
+    #    pass
 
-    @handle_event(Unequip)
-    def handle_unequip(self, event):
-        pass
-
-    @handle_event(Damage, on=wearer)
-    def handle_wearer_damage(self, event):
+    #@handler(Damage, on=wearer)
+    #def handle_wearer_damage(self, event):
+    pass
 
 Armor = Item(Equipment, tmp_rendering=('[', 'default'))
-"""
 
 # TODO
 # - figure out the role of a component.  if we're mostly doing message/event

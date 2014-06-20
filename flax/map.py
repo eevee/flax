@@ -48,6 +48,7 @@ class Map:
 
     def find(self, thing):
         assert isinstance(thing, Thing)
+        # TODO maybe this should return a tile?
         return self.thing_positions[thing]
 
     def move(self, thing, position):
