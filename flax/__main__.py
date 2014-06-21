@@ -168,6 +168,18 @@ class PlayerStatusWidget(urwid.Pile):
         self._invalidate()
 
 
+class InventoryItem(urwid.WidgetWrap):
+    def __init__(self, item):
+        self.item = item
+        glyph, attr = item.type.tmp_rendering
+        widget = urwid.Text([
+            (attr, glyph),
+            ' ',
+            ('ui-inventory', item.type.name),
+        ])
+        super().__init__(widget)
+
+
 class InventoryMenu(urwid.ListBox):
     signals = ['close']
 
@@ -177,7 +189,7 @@ class InventoryMenu(urwid.ListBox):
 
         from flax.things.arch import IContainer
         for item in IContainer(player).inventory:
-            self.body.append(urwid.Text(repr(item)))
+            self.body.append(InventoryItem(item))
 
     def keypress(self, size, key):
         if key == 'esc':
@@ -289,6 +301,12 @@ class ToggleableOverlay(urwid.Overlay):
         else:
             return self.bottom_w.render(size, focus)
 
+    ### New APIs
+
+    def change_overlay(self, widget):
+        self.top_w = widget
+        self._invalidate()
+
 
 class FlaxWidget(urwid.WidgetWrap):
     def __init__(self, world):
@@ -320,11 +338,9 @@ class FlaxWidget(urwid.WidgetWrap):
         if key == 'i':
             inventory = InventoryMenu(self.world.player)
             def close(widget):
-                self.overlay.top_w = None
-                self.overlay._invalidate()
+                self.overlay.change_overlay(None)
             urwid.connect_signal(inventory, 'close', close)
-            self.overlay.top_w = inventory
-            self.overlay._invalidate()
+            self.overlay.change_overlay(inventory)
         else:
             return key
 

@@ -12,8 +12,9 @@ class Layer(Enum):
 
 
 class ThingType:
-    def __init__(self, *components, layer, tmp_rendering):
+    def __init__(self, *components, layer, name, tmp_rendering):
         self.layer = layer
+        self.name = name
         self.tmp_rendering = tmp_rendering
 
         self.components = {}
@@ -36,6 +37,12 @@ class Thing:
     def __init__(self, type):
         self.type = type
         self.component_data = {}
+
+    def __repr__(self):
+        return "<{}: {}>".format(
+            type(self).__qualname__,
+            self.type.name,
+        )
 
     def __conform__(self, iface):
         # z.i method called on an object to ask it to adapt itself to some
@@ -198,7 +205,7 @@ class Container(Component):
     # duplicate events for the source vs the target?
     @handler(PickingUp)
     def handle_picking_up(self, event):
-        print("ooh picking up", event.items)
+        print("ooh picking up", ", ".join(item.type.name for item in event.items))
         for item in event.items:
             assert item.layer is Layer.item
             event.world.current_map.remove(item)
@@ -290,32 +297,39 @@ Architecture = partial(ThingType, layer=Layer.architecture)
 
 CaveWall = Architecture(
     Solid,
+    name='wall',
     tmp_rendering=(' ', 'default'))
 Wall = Architecture(
     Solid,
+    name='wall',
     tmp_rendering=('▒', 'default'))
 Floor = Architecture(
     Empty,
+    name='dirt',
     tmp_rendering=('·', 'floor'))
 Tree = Architecture(
     Solid,
+    name='tree',
     tmp_rendering=('↟', 'grass'))
 Grass = Architecture(
     Empty,
+    name='grass',
     tmp_rendering=('ʬ', 'grass'))
 CutGrass = Architecture(
     Empty,
+    name='freshly-cut grass',
     tmp_rendering=('░', 'grass'))
 Dirt = Architecture(
     Empty,
+    name='dirt',
     tmp_rendering=('░', 'dirt'))
 
 
 Creature = partial(ThingType, Solid, Combatant, Container, layer=Layer.creature)
 
-Player = Creature(PlayerIntelligence, tmp_rendering=('☻', 'player'))
+Player = Creature(PlayerIntelligence, name='you', tmp_rendering=('☻', 'player'))
 
-Salamango = Creature(GenericAI, tmp_rendering=(':', 'salamango'))
+Salamango = Creature(GenericAI, name='salamango', tmp_rendering=(':', 'salamango'))
 
 
 
@@ -352,7 +366,7 @@ class Equipment(Component):
     #def handle_wearer_damage(self, event):
     pass
 
-Armor = Item(Equipment, tmp_rendering=('[', 'default'))
+Armor = Item(Equipment, name='armor', tmp_rendering=('[', 'default'))
 
 # TODO
 # - figure out the role of a component.  if we're mostly doing message/event
