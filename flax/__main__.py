@@ -118,6 +118,7 @@ class CellWidget(urwid.Widget):
 
         from flax.event import Walk
         from flax.event import PickUpAll
+        from flax.event import Equip
         from flax.geometry import Direction
         event = None
         if key == 'up':
@@ -130,15 +131,26 @@ class CellWidget(urwid.Widget):
             event = self.world.player_action_from_direction(Direction.right)
         elif key == ',':
             event = PickUpAll(self.world.player, self.world.current_map.find(self.world.player))
+        elif key == 'e':
+            # TODO menu prompt plz; identifying items is gonna be pretty
+            # important later
+            from flax.things.arch import IContainer
+            from flax.things.arch import Armor
+            for item in IContainer(self.world.player).inventory:
+                if item.type is Armor:
+                    break
+            else:
+                return key
+            event = Equip(self.world.player, item)
         else:
             return key
 
         if event:
             self.world.push_player_action(event)
 
-        # TODO this should eventually become self.world i think
-        # TODO also should probably use the event loop?  right?
-
+        # TODO um, shouldn't really advance the world if the player pressed a
+        # bogus key
+        # TODO should probably use the event loop?  right?
         self.world.advance()
 
         # TODO this is terrible

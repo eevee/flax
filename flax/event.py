@@ -91,6 +91,22 @@ class PickingUp(Event):
         pass
 
 
+class Equip(Event):
+    def __init__(self, actor, item):
+        self.actor = actor
+        self.item = item
+
+    def is_valid(self, map):
+        # TODO return actor has or is standing on item??
+        return True
+
+    def find_targets(self, map):
+        return [self.item]
+
+    def default_behavior(self, map):
+        pass
+
+
 
 class MeleeAttack(Event):
     def __init__(self, actor, direction):

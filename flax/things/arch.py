@@ -12,10 +12,11 @@ class Layer(Enum):
 
 
 class ThingType:
-    def __init__(self, *components, layer, name, tmp_rendering):
+    def __init__(self, *components, layer, name, tmp_rendering, modifiers=()):
         self.layer = layer
         self.name = name
         self.tmp_rendering = tmp_rendering
+        self.modifiers = modifiers
 
         self.components = {}
         for component in components:
@@ -36,6 +37,7 @@ class ThingType:
 class Thing:
     def __init__(self, type):
         self.type = type
+        self.modifiers = []
         self.component_data = {}
 
     def __repr__(self):
@@ -50,6 +52,16 @@ class Thing:
         # TODO handle keyerror?  or don't?
         component = self.type.components[iface]
         return component(iface, self)
+
+    def add_modifiers(self, *modifiers):
+        # Temporarily inject another source's modifiers onto this thing.
+        # TODO: these should know their source and why: (Armor, equipment)
+        # TODO: i would prefer if these disappeared on their own, somehow,
+        # rather than relying on an event.  but probably the event should be
+        # reliable anyway.
+        self.modifiers.extend(modifiers)
+        # TODO: fire events when stats change?  (is that how the UI should be
+        # updated?)
 
     def isa(self, thing_type):
         # TODO unclear how this will handle inherited properties, or if it ever
@@ -87,6 +99,21 @@ class Handler:
         return self.func(*args, **kwargs)
 
 
+# TODO: i feel like instead of having two of every event, i'd kind of like to
+# have events fire in two passes: during the first, any handler can cancel the
+# event or succeed the event, either of which stops further processing; during
+# the second, any handler can respond to the success of the event.
+# so the base Equipment can have an Equip handler that just equips it and adds
+# modifiers; if you want to make armor that sometimes can't be equipped, you
+# add a regular first-pass handler that can cancel, but if you want armor that
+# does something extra /after/ it's equipped successfully, you do second-pass.
+# and then if nothing calls .succeed(), the event is assumed to have failed,
+# which would also help prevent a few kinds of mistakes i've already made oops.
+# but then, that might only work if both the actor and the target get to
+# respond?  i.e. you fire Drink at a potion, but if you have some armor that
+# does something with potions, its event handlers are attached to /you/ rather
+# than to all potions everywhere.  maybe that's just part of the idea of having
+# event handlers from different 'directions' though??
 def handler(event_class):
     def decorator(f):
         return Handler.wrap(f, event_class)
@@ -130,7 +157,12 @@ class ComponentAttribute:
         if attr not in data:
             data[attr] = desc.initializer(self)
 
-        return data[attr]
+        value = data[attr]
+
+        for mod in self.entity.modifiers:
+            value = mod.modify(attr, value)
+
+        return value
 
     def __set__(desc, self, value):
         self.entity.component_data[desc.zope_attribute] = value
@@ -246,7 +278,7 @@ class Combatant(Component):
     def health(self):
         return 10
 
-    @property
+    @attribute(ICombatant)
     def strength(self):
         return 3
 
@@ -346,18 +378,29 @@ class UsablePotion(Component):
         return effect.Heal()
 
 #potion = Item(UsablePotion, name="potion")
-
+Potion = Item(UsablePotion, name='potion', tmp_rendering=('ð', 'default'))
 
 
 class IEquipment(IComponent):
     pass
 
+from flax.event import Equip
+
 @zi.implementer(IEquipment)
 class Equipment(Component):
-    #@handler(Equip)
-    #def handle_equip(self, event):
-    #    pass
-    #
+    # TODO turn this into a general "while equipped"?  i guess that's really
+    # just sugar
+    @handler(Equip)
+    def handle_equip(self, event):
+        # TODO lol it's possible to put something on twice whoops.  this needs
+        # to actually do some kind of equipment association anyway.
+        print("you put on the armor")
+        # Careful to use the /type/'s modifiers here, not the item's!
+        # TODO consider renaming either attribute
+        event.actor.add_modifiers(*self.type.modifiers)
+
+    # TODO this part is probably important now, not that there's a key for
+    # uneqipping yet either
     #@handler(Unequip)
     #def handle_unequip(self, event):
     #    pass
@@ -366,7 +409,20 @@ class Equipment(Component):
     #def handle_wearer_damage(self, event):
     pass
 
-Armor = Item(Equipment, name='armor', tmp_rendering=('[', 'default'))
+
+class Modifier:
+    def __init__(self, stat, add):
+        self.stat = stat
+        self.add = add
+
+    def modify(self, attr, value):
+        if attr is not self.stat:
+            return value
+
+        return value + self.add
+
+Armor = Item(Equipment, name='armor', tmp_rendering=('[', 'default'), modifiers=[Modifier(ICombatant['strength'], add=3)])
+
 
 # TODO
 # - figure out the role of a component.  if we're mostly doing message/event
