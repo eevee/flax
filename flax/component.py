@@ -257,7 +257,8 @@ class GenericAI(Component):
 @zi.implementer(IActor)
 class PlayerIntelligence(Component):
     def act(self, world):
-        pass
+        if world.player_action_queue:
+            world.queue_immediate_event(world.player_action_queue.popleft())
 
 
 # -----------------------------------------------------------------------------

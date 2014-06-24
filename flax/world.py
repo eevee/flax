@@ -1,5 +1,6 @@
 from collections import deque
 
+from flax.component import IActor
 from flax.fractor import generate_map
 
 
@@ -43,16 +44,11 @@ class World:
             return Walk(self.player, direction)
 
     def advance(self):
-        # TODO this is all still bad for the same reasons as before: should
-        # include the player in the loop somehow, should take time into account
-        # for real
-        if self.player_action_queue:
-            player_action = self.player_action_queue.popleft()
-            self.queue_event(player_action)
-            self.drain_event_queue()
-
-        # Perform a turn for everyone else
-        from flax.component import IActor
+        # Perform a turn for every actor on the map
+        # TODO this feels slightly laggier, i think, since the player's action
+        # now happens kind of /whenever/.  might help to have a persistent list
+        # of actors held by the map.  also to have a circular queue and just
+        # wait when we get to the player and there's nothing to do.
         actors = []
         for tile in self.current_map.tiles.values():
             # TODO what if things other than creatures can think??  fuck
