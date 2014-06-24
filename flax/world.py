@@ -63,7 +63,7 @@ class World:
     def drain_event_queue(self):
         while self.event_queue:
             event = self.event_queue.popleft()
-            event.fire(self, self.current_map)
+            event.fire(self)
 
     def queue_event(self, event):
         self.event_queue.append(event)

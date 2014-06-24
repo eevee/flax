@@ -11,7 +11,7 @@ class Event:
     cancelled = False
     successful = False
 
-    def fire(self, world, map):
+    def fire(self, world):
         self.world = world
 
         if not self.target:
@@ -34,12 +34,6 @@ class Event:
     def succeed(self):
         assert not self.cancelled
         self.successful = True
-
-    def find_target(self, map):
-        raise NotImplementedError
-
-    def default_behavior(self, map):
-        raise NotImplementedError
 
 
 class Walk(Event):
