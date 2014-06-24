@@ -21,7 +21,7 @@ class Layer(Enum):
     creature = 3
 
 
-class ThingType:
+class EntityType:
     """A class of entity, except deliberately not implemented as a class.
 
     Consists primarily of some number of components, each implementing a
@@ -49,10 +49,10 @@ class ThingType:
         """Create a new entity of this type.  Implemented so you can pretend
         these are classes.
         """
-        return Thing(self, *args, **kwargs)
+        return Entity(self, *args, **kwargs)
 
 
-class Thing:
+class Entity:
     """An entity in the game world.  Might be anything from a chunk of the
     floor to a segment of a giant worm.
     """
@@ -85,10 +85,10 @@ class Thing:
         # TODO: fire events when stats change?  (is that how the UI should be
         # updated?)
 
-    def isa(self, thing_type):
+    def isa(self, entity_type):
         # TODO unclear how this will handle inherited properties, or if it ever
         # needs to (well, surely we want e.g. Potion)
-        return self.type is thing_type
+        return self.type is entity_type
 
     @property
     def layer(self):
@@ -97,7 +97,7 @@ class Thing:
     def handle_event(self, event):
         for iface, component in self.type.components.items():
             adapted = component(iface, self)
-            adapted.handle_event(adapted, event)
+            adapted.handle_event(event)
 
 
 ###############################################################################
@@ -106,7 +106,7 @@ class Thing:
 # -----------------------------------------------------------------------------
 # Architecture
 
-Architecture = partial(ThingType, layer=Layer.architecture)
+Architecture = partial(EntityType, layer=Layer.architecture)
 
 CaveWall = Architecture(
     Solid,
@@ -141,7 +141,7 @@ Dirt = Architecture(
 # -----------------------------------------------------------------------------
 # Creatures
 
-Creature = partial(ThingType, Solid, Combatant, Container, layer=Layer.creature)
+Creature = partial(EntityType, Solid, Combatant, Container, layer=Layer.creature)
 Player = Creature(PlayerIntelligence, name='you', tmp_rendering=('☻', 'player'))
 Salamango = Creature(GenericAI, name='salamango', tmp_rendering=(':', 'salamango'))
 
@@ -149,7 +149,7 @@ Salamango = Creature(GenericAI, name='salamango', tmp_rendering=(':', 'salamango
 # -----------------------------------------------------------------------------
 # Items
 
-Item = partial(ThingType, Portable, layer=Layer.item)
+Item = partial(EntityType, Portable, layer=Layer.item)
 
 # TODO implement a potion!
 #Potion = Item(UsablePotion, name='potion', tmp_rendering=('ð', 'default'))

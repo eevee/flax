@@ -109,13 +109,13 @@ class Component(metaclass=ComponentMeta):
         self.iface = iface
         self.entity = entity
 
-    def handle_event(self, thing, event):
-        # TODO seems a bit odd that we're receiving the actual Thing here
+    def handle_event(self, event):
         # TODO what order should these be called in?
         for event_class in type(event).__mro__:
             for handler in self.event_handlers[event_class]:
                 # TODO at this point we are nested three loops deep
-                handler(thing, event)
+                handler(self, event)
+
 
 ###############################################################################
 # Particular interfaces and components follow.
@@ -145,7 +145,7 @@ class Solid(Component):
     # would make this all make a bit more...  predictable.  and i think that
     # would make the semantics a little better: most events are, in a way,
     # really just calls to component methods that other things can twiddle
-    # TODO also seems like i should /require/ that every ThingType has a
+    # TODO also seems like i should /require/ that every entity type has a
     # IPhysics, maybe others...
     @handler(Walk)
     def handle_walk(self, event):

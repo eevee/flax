@@ -1,14 +1,14 @@
 from weakref import WeakKeyDictionary, ref
 
 from flax.geometry import Point
-from flax.entity import Thing, Layer, Player
+from flax.entity import Entity, Layer, Player
 
 
 class Map:
     def __init__(self, size):
         self.rect = size.to_rect(Point.origin())
 
-        self.thing_positions = WeakKeyDictionary()
+        self.entity_positions = WeakKeyDictionary()
 
         self.tiles = {
             point: Tile(self, point)
@@ -37,33 +37,33 @@ class Map:
         for y in self.rect.range_height():
             yield (self.tiles[Point(x, y)] for x in self.rect.range_width())
 
-    def place(self, thing, position):
-        assert thing not in self.thing_positions
-        self.thing_positions[thing] = position
-        self.tiles[position].attach(thing)
+    def place(self, entity, position):
+        assert entity not in self.entity_positions
+        self.entity_positions[entity] = position
+        self.tiles[position].attach(entity)
 
-        if thing.isa(Player):
-            self.player = thing
+        if entity.isa(Player):
+            self.player = entity
 
-    def find(self, thing):
-        assert isinstance(thing, Thing)
-        pos = self.thing_positions[thing]
+    def find(self, entity):
+        assert isinstance(entity, Entity)
+        pos = self.entity_positions[entity]
         return self.tiles[pos]
 
-    def move(self, thing, position):
-        old_position = self.thing_positions[thing]
+    def move(self, entity, position):
+        old_position = self.entity_positions[entity]
         old_tile = self.tiles[old_position]
-        old_tile.detach(thing)
+        old_tile.detach(entity)
 
-        self.thing_positions[thing] = position
+        self.entity_positions[entity] = position
         new_tile = self.tiles[position]
-        new_tile.attach(thing)
+        new_tile.attach(entity)
 
-    def remove(self, thing):
-        position = self.thing_positions.pop(thing)
-        self.tiles[position].detach(thing)
+    def remove(self, entity):
+        position = self.entity_positions.pop(entity)
+        self.tiles[position].detach(entity)
 
-        if thing.isa(Player):
+        if entity.isa(Player):
             del self.player
 
     def __contains__(self, position):
@@ -76,7 +76,7 @@ class Tile:
         self.position = position
         # TODO would like architecture to default to something (probably
         # CaveWall) so a freshly-created Tile is cromulent, without having to
-        # create a new Thing on every Tile just to have it overwritten a moment
+        # create a new entity on every Tile just to have it overwritten a moment
         # later
         self.architecture = None
         self.creature = None
@@ -87,52 +87,52 @@ class Tile:
         return self._map()
 
     @property
-    def things(self):
+    def entities(self):
         if self.creature:
             yield self.creature
 
         yield from self.items
         yield self.architecture
 
-    def attach(self, thing):
-        """Add the given thing from this tile.  Its position is not affected.
+    def attach(self, entity):
+        """Add the given entity from this tile.  Its position is not affected.
         This method is only intended to be called by the map object.
         """
-        if thing.layer is Layer.architecture:
+        if entity.layer is Layer.architecture:
             assert self.architecture is None
-            self.architecture = thing
-        elif thing.layer is Layer.item:
-            self.items.append(thing)
-        elif thing.layer is Layer.creature:
+            self.architecture = entity
+        elif entity.layer is Layer.item:
+            self.items.append(entity)
+        elif entity.layer is Layer.creature:
             assert self.creature is None
-            self.creature = thing
+            self.creature = entity
         else:
             raise TypeError(
-                "Unknown layer {!r} for thing {!r}"
-                .format(thing.layer, thing))
+                "Unknown layer {!r} for entity {!r}"
+                .format(entity.layer, entity))
 
-    def detach(self, thing):
-        """Remove the given thing from this tile.  Its position is not
+    def detach(self, entity):
+        """Remove the given entity from this tile.  Its position is not
         affected.  This method is only intended to be called by the map object.
         """
-        if thing.layer is Layer.architecture:
-            assert self.architecture is thing
+        if entity.layer is Layer.architecture:
+            assert self.architecture is entity
             self.architecture = None
-        elif thing.layer is Layer.item:
-            self.items.remove(thing)
-        elif thing.layer is Layer.creature:
-            assert self.creature is thing
+        elif entity.layer is Layer.item:
+            self.items.remove(entity)
+        elif entity.layer is Layer.creature:
+            assert self.creature is entity
             self.creature = None
         else:
             raise TypeError(
-                "Unknown layer {!r} for thing {!r}"
-                .format(thing.layer, thing))
+                "Unknown layer {!r} for entity {!r}"
+                .format(entity.layer, entity))
 
     def handle_event(self, event):
         """Let a tile act as an event handler, by delegating to everything in
         the tile.
         """
-        for thing in self.things:
-            thing.handle_event(event)
+        for entity in self.entities:
+            entity.handle_event(event)
             if event.cancelled:
                 return

@@ -76,7 +76,7 @@ class CellCanvas(urwid.Canvas):
             current_attr = None
             current_glyphs = []
             for tile in islice(row, trim_left, cols):
-                obj = next(tile.things)
+                obj = next(tile.entities)
                 glyph, attr = obj.type.tmp_rendering
                 if current_attr != attr:
                     if current_glyphs:
