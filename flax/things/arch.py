@@ -74,7 +74,8 @@ class Thing:
 
     def handle_event(self, event):
         for iface, component in self.type.components.items():
-            component(iface, self).handle_event(self, event)
+            adapted = component(iface, self)
+            adapted.handle_event(adapted, event)
 
 
 
@@ -217,7 +218,7 @@ class Solid(Component):
     # TODO also seems like i should /require/ that every ThingType has a
     # IPhysics, maybe others...
     @handler(Walk)
-    def handle_walk(thing, event):
+    def handle_walk(self, event):
         event.cancel()
 
 
@@ -225,24 +226,13 @@ class IContainer(IComponent):
     inventory = zi.Attribute("""Items contained by this container.""")
 
 
-from flax.event import PickingUp
+from flax.event import PickUp
 
 @zi.implementer(IContainer)
 class Container(Component):
     @attribute(IContainer)
     def inventory(self):
         return []
-
-    # TODO maybe "actor" could just be an event target, and we'd need fewer
-    # duplicate events for the source vs the target?
-    @handler(PickingUp)
-    def handle_picking_up(self, event):
-        print("ooh picking up", ", ".join(item.type.name for item in event.items))
-        for item in event.items:
-            assert item.layer is Layer.item
-            event.world.current_map.remove(item)
-            IContainer(self).inventory.append(item)
-
 
 
 @zi.implementer(IPhysics)
@@ -251,8 +241,8 @@ class Empty(Component):
         return False
 
     @handler(Walk)
-    def handle_walk(thing, event):
-        pass
+    def handle_walk(self, event):
+        event.world.current_map.move(event.actor, event.target.position)
 
 
 class ICombatant(IComponent):
@@ -269,6 +259,9 @@ class ICombatant(IComponent):
         """
 
 
+from flax.event import MeleeAttack, Damage, Die
+
+
 @zi.implementer(ICombatant)
 class Combatant(Component):
     def __init__(self, *args, **kwargs):
@@ -282,9 +275,28 @@ class Combatant(Component):
     def strength(self):
         return 3
 
-    def damage(self, amount):
-        self.health -= amount
-        # XXX uhhhh how do i fire events from arbitrary places goddammit
+    @handler(Damage)
+    def handle_damage(self, event):
+        self.health -= event.amount
+
+        if self.health <= 0:
+            event.world.queue_immediate_event(Die(self.entity))
+
+    @handler(MeleeAttack)
+    def handle_attack(self, event):
+        print("{0} hits {1}".format(event.actor.type.name, self.entity.type.name))
+
+        # TODO what's the amount
+        event.world.queue_immediate_event(Damage(self.entity, 5))
+
+    @handler(Die)
+    def handle_death(self, event):
+        # TODO player death is different; probably raise an exception for the
+        # ui to handle?
+        print("{} has died".format(self.entity.type.name))
+        event.world.current_map.remove(self.entity)
+        # TODO and drop inventory, and/or a corpse
+
 
 
 
@@ -308,8 +320,8 @@ class GenericAI(Component):
         from flax.event import Walk
         from flax.event import MeleeAttack
         import random
-        pos = world.current_map.find(self.entity)
-        player_pos = world.current_map.find(world.player)
+        pos = world.current_map.find(self.entity).position
+        player_pos = world.current_map.find(world.player).position
         for direction in Direction:
             if pos + direction == player_pos:
                 world.queue_event(MeleeAttack(self.entity, direction))
@@ -364,8 +376,23 @@ Player = Creature(PlayerIntelligence, name='you', tmp_rendering=('☻', 'player'
 Salamango = Creature(GenericAI, name='salamango', tmp_rendering=(':', 'salamango'))
 
 
+class IPortable(IComponent):
+    """Entity can be picked up and placed in containers."""
 
-Item = partial(ThingType, layer=Layer.item)
+
+@zi.implementer(IPortable)
+class Portable(Component):
+    # TODO maybe "actor" could just be an event target, and we'd need fewer
+    # duplicate events for the source vs the target?
+    @handler(PickUp)
+    def handle_picked_up(self, event):
+        print("ooh picking up", self.entity.type.name)
+        assert self.entity.type.layer is Layer.item
+        event.world.current_map.remove(self.entity)
+        IContainer(event.actor).inventory.append(self.entity)
+
+
+Item = partial(ThingType, Portable, layer=Layer.item)
 
 class IUsable(IComponent):
     def use():
@@ -379,6 +406,7 @@ class UsablePotion(Component):
 
 #potion = Item(UsablePotion, name="potion")
 Potion = Item(UsablePotion, name='potion', tmp_rendering=('ð', 'default'))
+
 
 
 class IEquipment(IComponent):
@@ -397,7 +425,7 @@ class Equipment(Component):
         print("you put on the armor")
         # Careful to use the /type/'s modifiers here, not the item's!
         # TODO consider renaming either attribute
-        event.actor.add_modifiers(*self.type.modifiers)
+        event.actor.add_modifiers(*self.entity.type.modifiers)
 
     # TODO this part is probably important now, not that there's a key for
     # uneqipping yet either

@@ -48,8 +48,8 @@ class Map:
 
     def find(self, thing):
         assert isinstance(thing, Thing)
-        # TODO maybe this should return a tile?
-        return self.thing_positions[thing]
+        pos = self.thing_positions[thing]
+        return self.tiles[pos]
 
     def move(self, thing, position):
         old_position = self.thing_positions[thing]
@@ -129,4 +129,11 @@ class Tile:
                 "Unknown layer {!r} for thing {!r}"
                 .format(thing.layer, thing))
 
-
+    def handle_event(self, event):
+        """Let a tile act as an event handler, by delegating to everything in
+        the tile.
+        """
+        for thing in self.things:
+            thing.handle_event(event)
+            if event.cancelled:
+                return

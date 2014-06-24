@@ -117,7 +117,7 @@ class CellWidget(urwid.Widget):
             raise urwid.ExitMainLoop
 
         from flax.event import Walk
-        from flax.event import PickUpAll
+        from flax.event import PickUp
         from flax.event import Equip
         from flax.geometry import Direction
         event = None
@@ -130,7 +130,11 @@ class CellWidget(urwid.Widget):
         elif key == 'right':
             event = self.world.player_action_from_direction(Direction.right)
         elif key == ',':
-            event = PickUpAll(self.world.player, self.world.current_map.find(self.world.player))
+            tile = self.world.current_map.find(self.world.player)
+            # TODO might consolidate this to a single event later if it fucks
+            # up the sense of time.  or maybe it should!
+            for item in tile.items:
+                self.world.push_player_action(PickUp(self.world.player, item))
         elif key == 'e':
             # TODO menu prompt plz; identifying items is gonna be pretty
             # important later
