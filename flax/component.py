@@ -1,83 +1,11 @@
 from collections import defaultdict
-from enum import Enum
-from functools import partial
 
 import zope.interface as zi
 
-
-class Layer(Enum):
-    architecture = 1
-    item = 2
-    creature = 3
-
-
-class ThingType:
-    def __init__(self, *components, layer, name, tmp_rendering, modifiers=()):
-        self.layer = layer
-        self.name = name
-        self.tmp_rendering = tmp_rendering
-        self.modifiers = modifiers
-
-        self.components = {}
-        for component in components:
-            for iface in zi.implementedBy(component):
-                if iface is IComponent:
-                    continue
-                if iface in self.components:
-                    raise TypeError(
-                        "Got two components for the same interface "
-                        "({!r}): {!r} and {!r}"
-                        .format(iface, self.components[iface], component))
-                self.components[iface] = component
-
-    def __call__(self, *args, **kwargs):
-        return Thing(self, *args, **kwargs)
-
-
-class Thing:
-    def __init__(self, type):
-        self.type = type
-        self.modifiers = []
-        self.component_data = {}
-
-    def __repr__(self):
-        return "<{}: {}>".format(
-            type(self).__qualname__,
-            self.type.name,
-        )
-
-    def __conform__(self, iface):
-        # z.i method called on an object to ask it to adapt itself to some
-        # interface
-        # TODO handle keyerror?  or don't?
-        component = self.type.components[iface]
-        return component(iface, self)
-
-    def add_modifiers(self, *modifiers):
-        # Temporarily inject another source's modifiers onto this thing.
-        # TODO: these should know their source and why: (Armor, equipment)
-        # TODO: i would prefer if these disappeared on their own, somehow,
-        # rather than relying on an event.  but probably the event should be
-        # reliable anyway.
-        self.modifiers.extend(modifiers)
-        # TODO: fire events when stats change?  (is that how the UI should be
-        # updated?)
-
-    def isa(self, thing_type):
-        # TODO unclear how this will handle inherited properties, or if it ever
-        # needs to (well, surely we want e.g. Potion)
-        return self.type is thing_type
-
-    @property
-    def layer(self):
-        return self.type.layer
-
-    def handle_event(self, event):
-        for iface, component in self.type.components.items():
-            adapted = component(iface, self)
-            adapted.handle_event(adapted, event)
-
-
+from flax.event import PickUp
+from flax.event import MeleeAttack, Damage, Die
+from flax.event import Walk
+from flax.event import Equip
 
 
 class Handler:
@@ -189,7 +117,11 @@ class Component(metaclass=ComponentMeta):
                 # TODO at this point we are nested three loops deep
                 handler(thing, event)
 
+###############################################################################
+# Particular interfaces and components follow.
 
+# -----------------------------------------------------------------------------
+# Physics
 
 class IPhysics(IComponent):
     def blocks(actor):
@@ -197,8 +129,6 @@ class IPhysics(IComponent):
         it.
         """
 
-
-from flax.event import Walk
 
 @zi.implementer(IPhysics)
 class Solid(Component):
@@ -222,19 +152,6 @@ class Solid(Component):
         event.cancel()
 
 
-class IContainer(IComponent):
-    inventory = zi.Attribute("""Items contained by this container.""")
-
-
-from flax.event import PickUp
-
-@zi.implementer(IContainer)
-class Container(Component):
-    @attribute(IContainer)
-    def inventory(self):
-        return []
-
-
 @zi.implementer(IPhysics)
 class Empty(Component):
     def blocks(self, actor):
@@ -245,21 +162,27 @@ class Empty(Component):
         event.world.current_map.move(event.actor, event.target.position)
 
 
+# -----------------------------------------------------------------------------
+# Containment
+
+class IContainer(IComponent):
+    inventory = zi.Attribute("""Items contained by this container.""")
+
+
+@zi.implementer(IContainer)
+class Container(Component):
+    @attribute(IContainer)
+    def inventory(self):
+        return []
+
+
+# -----------------------------------------------------------------------------
+# Combat
+
 class ICombatant(IComponent):
     """Implements an entity's ability to fight and take damage."""
     health = zi.Attribute("""Entity's health meter.""")
-
     strength = zi.Attribute("""Generic placeholder stat while I figure stuff out.""")
-
-    def damage(amount):
-        """Take damage.
-
-        Don't override this to respond to damage; handle the Damage event
-        instead.
-        """
-
-
-from flax.event import MeleeAttack, Damage, Die
 
 
 @zi.implementer(ICombatant)
@@ -298,8 +221,8 @@ class Combatant(Component):
         # TODO and drop inventory, and/or a corpse
 
 
-
-
+# -----------------------------------------------------------------------------
+# AI
 
 class IActor(IComponent):
     """Implements an entity's active thought process.  An entity with an
@@ -337,44 +260,8 @@ class PlayerIntelligence(Component):
         pass
 
 
-Architecture = partial(ThingType, layer=Layer.architecture)
-
-CaveWall = Architecture(
-    Solid,
-    name='wall',
-    tmp_rendering=(' ', 'default'))
-Wall = Architecture(
-    Solid,
-    name='wall',
-    tmp_rendering=('▒', 'default'))
-Floor = Architecture(
-    Empty,
-    name='dirt',
-    tmp_rendering=('·', 'floor'))
-Tree = Architecture(
-    Solid,
-    name='tree',
-    tmp_rendering=('↟', 'grass'))
-Grass = Architecture(
-    Empty,
-    name='grass',
-    tmp_rendering=('ʬ', 'grass'))
-CutGrass = Architecture(
-    Empty,
-    name='freshly-cut grass',
-    tmp_rendering=('░', 'grass'))
-Dirt = Architecture(
-    Empty,
-    name='dirt',
-    tmp_rendering=('░', 'dirt'))
-
-
-Creature = partial(ThingType, Solid, Combatant, Container, layer=Layer.creature)
-
-Player = Creature(PlayerIntelligence, name='you', tmp_rendering=('☻', 'player'))
-
-Salamango = Creature(GenericAI, name='salamango', tmp_rendering=(':', 'salamango'))
-
+# -----------------------------------------------------------------------------
+# Items
 
 class IPortable(IComponent):
     """Entity can be picked up and placed in containers."""
@@ -386,33 +273,19 @@ class Portable(Component):
     # duplicate events for the source vs the target?
     @handler(PickUp)
     def handle_picked_up(self, event):
+        from flax.entity import Layer
         print("ooh picking up", self.entity.type.name)
         assert self.entity.type.layer is Layer.item
         event.world.current_map.remove(self.entity)
         IContainer(event.actor).inventory.append(self.entity)
 
 
-Item = partial(ThingType, Portable, layer=Layer.item)
-
-class IUsable(IComponent):
-    def use():
-        pass
-
-
-@zi.implementer(IUsable)
-class UsablePotion(Component):
-    def use(self):
-        return effect.Heal()
-
-#potion = Item(UsablePotion, name="potion")
-Potion = Item(UsablePotion, name='potion', tmp_rendering=('ð', 'default'))
-
-
+# -----------------------------------------------------------------------------
+# Equipment
 
 class IEquipment(IComponent):
     pass
 
-from flax.event import Equip
 
 @zi.implementer(IEquipment)
 class Equipment(Component):
@@ -436,27 +309,3 @@ class Equipment(Component):
     #@handler(Damage, on=wearer)
     #def handle_wearer_damage(self, event):
     pass
-
-
-class Modifier:
-    def __init__(self, stat, add):
-        self.stat = stat
-        self.add = add
-
-    def modify(self, attr, value):
-        if attr is not self.stat:
-            return value
-
-        return value + self.add
-
-Armor = Item(Equipment, name='armor', tmp_rendering=('[', 'default'), modifiers=[Modifier(ICombatant['strength'], add=3)])
-
-
-# TODO
-# - figure out the role of a component.  if we're mostly doing message/event
-# passing, what code does a component actually need to have?
-# - how do values work?  how do modifiers and other effects work?
-# - implement...
-#       armor that reduces damage by half
-#       forestwalk
-#       basic stats

@@ -1,4 +1,3 @@
-from collections import deque
 from itertools import islice
 import sys
 
@@ -116,7 +115,6 @@ class CellWidget(urwid.Widget):
         if key == 'q':
             raise urwid.ExitMainLoop
 
-        from flax.event import Walk
         from flax.event import PickUp
         from flax.event import Equip
         from flax.geometry import Direction
@@ -138,8 +136,8 @@ class CellWidget(urwid.Widget):
         elif key == 'e':
             # TODO menu prompt plz; identifying items is gonna be pretty
             # important later
-            from flax.things.arch import IContainer
-            from flax.things.arch import Armor
+            from flax.component import IContainer
+            from flax.entity import Armor
             for item in IContainer(self.world.player).inventory:
                 if item.type is Armor:
                     break
@@ -178,7 +176,7 @@ class PlayerStatusWidget(urwid.Pile):
         self.update()
 
     def update(self):
-        from flax.things.arch import ICombatant
+        from flax.component import ICombatant
         self.health_text.set_text("Health: {}".format(ICombatant(self.player).health))
         self.strength_text.set_text("Strength: {}".format(ICombatant(self.player).strength))
         self._invalidate()
@@ -203,7 +201,7 @@ class InventoryMenu(urwid.ListBox):
         walker = urwid.SimpleListWalker([])
         super().__init__(walker)
 
-        from flax.things.arch import IContainer
+        from flax.component import IContainer
         for item in IContainer(player).inventory:
             self.body.append(InventoryItem(item))
 

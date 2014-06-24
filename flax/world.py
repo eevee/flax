@@ -52,7 +52,7 @@ class World:
             self.drain_event_queue()
 
         # Perform a turn for everyone else
-        from flax.things.arch import IActor
+        from flax.component import IActor
         actors = []
         for tile in self.current_map.tiles.values():
             # TODO what if things other than creatures can think??  fuck

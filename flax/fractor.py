@@ -2,7 +2,7 @@ import random
 
 from flax.geometry import Point, Rectangle, Size
 from flax.map import Map
-from flax.things.arch import CaveWall, Wall, Floor, Tree, Grass, CutGrass, Dirt, Player, Salamango, Armor
+from flax.entity import CaveWall, Wall, Floor, Tree, Grass, CutGrass, Dirt, Player, Salamango, Armor
 
 
 class MapCanvas:

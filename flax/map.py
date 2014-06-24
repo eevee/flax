@@ -1,8 +1,7 @@
-from itertools import product
 from weakref import WeakKeyDictionary, ref
 
 from flax.geometry import Point
-from flax.things.arch import CaveWall, Thing, Layer, Player
+from flax.entity import Thing, Layer, Player
 
 
 class Map:
