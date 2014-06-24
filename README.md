@@ -2,7 +2,11 @@
 
 This is the beginnings of a roguelike, set in the [Flora](http://floraverse.com/) universe.
 
-You'll need Python 3.3+ and the `urwid` module.
+You will need:
+
+* Python 3.3+
+* `urwid`
+* `zope.interface`
 
 Run it with:
 
