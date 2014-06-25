@@ -6,6 +6,9 @@ from flax.event import PickUp
 from flax.event import MeleeAttack, Damage, Die
 from flax.event import Walk
 from flax.event import Equip
+from flax.event import Unequip
+
+from flax.relation import Wears
 
 
 class Handler:
@@ -88,8 +91,13 @@ class ComponentAttribute:
 
         value = data[attr]
 
-        for mod in self.entity.modifiers:
-            value = mod.modify(attr, value)
+        # TODO well this is a bit cumbersome
+        for reltype, relations in self.entity.relations.items():
+            for relation in relations:
+                if self.entity is relation.to_entity:
+                    continue
+                for mod in relation.to_entity.type.modifiers:
+                    value = mod.modify(attr, value)
 
         return value
 
@@ -290,22 +298,17 @@ class IEquipment(IComponent):
 
 @zi.implementer(IEquipment)
 class Equipment(Component):
-    # TODO turn this into a general "while equipped"?  i guess that's really
-    # just sugar
     @handler(Equip)
     def handle_equip(self, event):
-        # TODO lol it's possible to put something on twice whoops.  this needs
-        # to actually do some kind of equipment association anyway.
         print("you put on the armor")
-        # Careful to use the /type/'s modifiers here, not the item's!
-        # TODO consider renaming either attribute
-        event.actor.add_modifiers(*self.entity.type.modifiers)
+        Wears(event.actor, self.entity)
 
-    # TODO this part is probably important now, not that there's a key for
-    # uneqipping yet either
-    #@handler(Unequip)
-    #def handle_unequip(self, event):
-    #    pass
+    @handler(Unequip)
+    def handle_unequip(self, event):
+        print("you take off the armor")
+        for relation in list(self.entity.relations[Wears]):
+            # TODO again this has the problem of direction, ugh
+            relation.destroy()
 
     #@handler(Damage, on=wearer)
     #def handle_wearer_damage(self, event):

@@ -117,6 +117,7 @@ class CellWidget(urwid.Widget):
 
         from flax.event import PickUp
         from flax.event import Equip
+        from flax.event import Unequip
         from flax.geometry import Direction
         event = None
         if key == 'up':
@@ -138,12 +139,23 @@ class CellWidget(urwid.Widget):
             # important later
             from flax.component import IContainer
             from flax.entity import Armor
+            from flax.relation import Wears
             for item in IContainer(self.world.player).inventory:
                 if item.type is Armor:
                     break
             else:
                 return key
             event = Equip(self.world.player, item)
+        elif key == 'r':
+            # TODO menu prompt plz; identifying items is gonna be pretty
+            # important later
+            from flax.relation import Wears
+            rels = self.world.player.relations[Wears]
+            if rels:
+                rel = next(iter(rels))
+                event = Unequip(self.world.player, rel.to_entity)
+            else:
+                pass
         else:
             return key
 

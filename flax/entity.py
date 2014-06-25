@@ -1,3 +1,4 @@
+from collections import defaultdict
 from enum import Enum
 from functools import partial
 
@@ -59,6 +60,7 @@ class Entity:
     def __init__(self, type):
         self.type = type
         self.modifiers = []
+        self.relations = defaultdict(set)
         self.component_data = {}
 
     def __repr__(self):
@@ -75,6 +77,7 @@ class Entity:
         component = self.type.components[iface]
         return component(iface, self)
 
+    # TODO this isn't used any more
     def add_modifiers(self, *modifiers):
         # Temporarily inject another source's modifiers onto this thing.
         # TODO: these should know their source and why: (Armor, equipment)
@@ -84,6 +87,14 @@ class Entity:
         self.modifiers.extend(modifiers)
         # TODO: fire events when stats change?  (is that how the UI should be
         # updated?)
+
+    def attach_relation(self, relation):
+        reltype = type(relation)
+        self.relations[reltype].add(relation)
+
+    def detach_relation(self, relation):
+        reltype = type(relation)
+        self.relations[reltype].remove(relation)
 
     def isa(self, entity_type):
         # TODO unclear how this will handle inherited properties, or if it ever

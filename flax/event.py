@@ -7,6 +7,8 @@ class EventListenerTarget(Enum):
     owner = 'owner'
 
 
+# TODO a recurring theme in the other TODO's below is: where does "is this
+# sane" belong?
 class Event:
     cancelled = False
     successful = False
@@ -67,6 +69,14 @@ class Equip(Event):
         # TODO complain unless actor has or is standing on item??
 
 
+class Unequip(Event):
+    def __init__(self, actor, item):
+        self.actor = actor
+        self.target = item
+
+        # TODO complain unless actor is wearing the item?
+
+
 
 class MeleeAttack(Event):
     def __init__(self, actor, direction):
@@ -80,7 +90,14 @@ class MeleeAttack(Event):
     @property
     def target(self):
         map = self.world.current_map
-        new_pos = map.find(self.actor).position + self.direction
+        try:
+            new_pos = map.find(self.actor).position + self.direction
+        except KeyError:
+            # TODO uggh this is also kind of a general problem: events queued
+            # by entities who then die before they're fired.  i think i need
+            # something like a queue where each item is tied to a weakref.
+            # something similar would help with auto-discarding modifiers too
+            return None
         if new_pos not in map:
             return None
         return map.tiles[new_pos].creature
