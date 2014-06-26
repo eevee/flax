@@ -71,11 +71,11 @@ class CellCanvas(urwid.Canvas):
         return None
 
     def content(self, trim_left=0, trim_top=0, cols=None, rows=None, attr=None):
-        for row in islice(self.map.rows, trim_top, rows):
+        for row in islice(self.map.rows, trim_top, trim_top + rows):
             ret = []
             current_attr = None
             current_glyphs = []
-            for tile in islice(row, trim_left, cols):
+            for tile in islice(row, trim_left, trim_left + cols):
                 obj = next(tile.entities)
                 glyph, attr = obj.type.tmp_rendering
                 if current_attr != attr:
@@ -105,9 +105,18 @@ class CellWidget(urwid.Widget):
 
     def render(self, size, focus=False):
         cols, rows = size
+
+        # TODO make this stop at the bottom and right edges too! maybe.
+        center = self.world.current_map.find(self.world.player).position
+        left = min(0, int(cols / 2) - center.x)
+        top  = min(0, int(rows / 2) - center.y)
+
+        right  = (cols - left) - self.canvas.cols()
+        bottom = (rows - top) - self.canvas.rows()
+
         map_canvas = urwid.CompositeCanvas(self.canvas)
-        map_canvas.pad_trim_left_right(0, cols - self.canvas.cols())
-        map_canvas.pad_trim_top_bottom(0, rows - self.canvas.rows())
+        map_canvas.pad_trim_left_right(left, right)
+        map_canvas.pad_trim_top_bottom(top, bottom)
         return map_canvas
 
     def keypress(self, size, key):
