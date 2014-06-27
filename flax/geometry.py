@@ -27,6 +27,16 @@ class Point(tuple):
     def __add__(self, other):
         if isinstance(other, Direction):
             return Point(self.x + other.value[0], self.y + other.value[1])
+        if isinstance(other, (Point, Size)):
+            return Point(self.x + other[0], self.y + other[1])
+
+        return NotImplemented
+
+    def __sub__(self, other):
+        if isinstance(other, Direction):
+            return Point(self.x - other.value[0], self.y - other.value[1])
+        if isinstance(other, (Point, Size)):
+            return Point(self.x - other[0], self.y - other[1])
 
         return NotImplemented
 
@@ -63,6 +73,12 @@ class Rectangle(tuple):
     def from_edges(cls, *, top, bottom, left, right):
         return cls(Point(left, top), Size(right - left + 1, bottom - top + 1))
 
+    @classmethod
+    def centered_at(cls, size, center):
+        left = center.x - size.width // 2
+        top = center.y - size.height // 2
+        return cls(Point(left, top), size)
+
     @property
     def topleft(self):
         return self[0]
@@ -95,6 +111,21 @@ class Rectangle(tuple):
     def height(self):
         return self.size.height
 
+    def relative_point(self, relative_width, relative_height):
+        """Find a point x% across the width and y% across the height.  The
+        arguments should be floats between 0 and 1.
+
+        For example, ``relative_point(0, 0)`` returns the top left, and
+        ``relative_point(0.5, 0.5)`` returns the center.
+        """
+        return Point(
+            self.left + int(self.width * relative_width + 0.5),
+            self.top + int(self.height * relative_height + 0.5),
+        )
+
+    def center(self):
+        return self.relative_point(0.5, 0.5)
+
     def __contains__(self, other):
         if isinstance(other, Rectangle):
             return (
@@ -111,7 +142,7 @@ class Rectangle(tuple):
         else:
             return False
 
-    def adjust(self, *, top=None, bottom=None, left=None, right=None):
+    def replace(self, *, top=None, bottom=None, left=None, right=None):
         if top is None:
             top = self.top
         if bottom is None:
@@ -126,6 +157,14 @@ class Rectangle(tuple):
             bottom=bottom,
             left=left,
             right=right,
+        )
+
+    def shift(self, *, top=0, bottom=0, left=0, right=0):
+        return type(self).from_edges(
+            top=self.top + top,
+            bottom=self.bottom + bottom,
+            left=self.left + left,
+            right=self.right + right,
         )
 
     def iter_points(self):

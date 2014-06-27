@@ -146,8 +146,8 @@ class BinaryPartitionFractor(Fractor):
         midpoint = random.randrange(top, bottom + 1)
 
         return [
-            self.region.adjust(bottom=midpoint),
-            self.region.adjust(top=midpoint + 1),
+            self.region.replace(bottom=midpoint),
+            self.region.replace(top=midpoint + 1),
         ]
 
     def partition_vertical(self):
@@ -162,8 +162,8 @@ class BinaryPartitionFractor(Fractor):
         midpoint = random.randrange(left, right + 1)
 
         return [
-            self.region.adjust(right=midpoint),
-            self.region.adjust(left=midpoint + 1),
+            self.region.replace(right=midpoint),
+            self.region.replace(left=midpoint + 1),
         ]
 
 
