@@ -59,6 +59,86 @@ class Size(tuple):
         return Rectangle(point, self)
 
 
+class Span(tuple):
+    """A one-dimensional range, with inclusive endpoints."""
+    def __new__(cls, start, end):
+        return super().__new__(cls, (start, end))
+
+    @property
+    def start(self):
+        return self[0]
+
+    @property
+    def end(self):
+        return self[1]
+
+    def __contains__(self, point):
+        return self.start <= point <= self.end
+
+    def __len__(self):
+        return self.end - self.start + 1
+
+    def __add__(self, n):
+        cls = type(self)
+        if isinstance(n, int):
+            return cls(self.start + n, self.end + n)
+
+        return NotImplemented
+
+    def __sub__(self, n):
+        return self + -n
+
+    def shift_into_view(self, point, *, margin=0):
+        """Return a new `Span` that contains the given `point`, moving the
+        endpoints as little as possible.
+
+        That is, if this span currently does NOT contain the given `point`, the
+        returned `Span` will have `point` as one of its endpoints.
+
+        If `margin` is provided, the `point` must end up at least `margin` away
+        from the endpoints.
+        """
+        if self.start + margin <= point <= self.end - margin:
+            return self
+
+        assert isinstance(point, int)
+        assert isinstance(margin, int)
+        assert margin > 0
+
+        # Move left if the point is further left than the start, or right if
+        # the point is further right than the end.
+        d = (
+            min(0, point - (self.start + margin)) +
+            max(0, point - (self.end - margin))
+        )
+
+        return self + d
+
+    def scale(self, width, *, pivot=None):
+        old_width = len(self)
+
+        if old_width == width:
+            return self
+
+        if pivot is None:
+            pivot = (self.start + self.end) // 2
+
+        cls = type(self)
+
+        relative_pos = (pivot - self.start) / old_width
+
+        start_offset = relative_pos * width
+        # Round such that the nearer edge gets more space
+        if relative_pos <= 0.5:
+            start_offset = int(start_offset + 0.5)
+        else:
+            start_offset = int(start_offset)
+
+        start = pivot - start_offset
+        end = start + width - 1
+        return cls(start, end)
+
+
 class Rectangle(tuple):
     """A rectangle.  Note that since we're working with tiles instead of
     coordinates, the edges here are inclusive on all sides; half the point of
@@ -72,6 +152,13 @@ class Rectangle(tuple):
     @classmethod
     def from_edges(cls, *, top, bottom, left, right):
         return cls(Point(left, top), Size(right - left + 1, bottom - top + 1))
+
+    @classmethod
+    def from_spans(cls, *, vertical, horizontal):
+        return cls.from_edges(
+            top=vertical.start, bottom=vertical.end,
+            left=horizontal.start, right=horizontal.end,
+        )
 
     @classmethod
     def centered_at(cls, size, center):
@@ -110,6 +197,14 @@ class Rectangle(tuple):
     @property
     def height(self):
         return self.size.height
+
+    @property
+    def vertical_span(self):
+        return Span(self.top, self.bottom)
+
+    @property
+    def horizontal_span(self):
+        return Span(self.left, self.right)
 
     def relative_point(self, relative_width, relative_height):
         """Find a point x% across the width and y% across the height.  The

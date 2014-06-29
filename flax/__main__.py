@@ -109,171 +109,90 @@ class CellWidget(urwid.Widget):
         self.world = world
         self.canvas = CellCanvas(world.current_map)
 
-        self.prior_map_view = None
+        self.viewport = None
 
-    def _distribute_space(self, start, end, pos, delta):
-        """Distribute `delta` space between `start` and `end` points, such that
-        `pos` ends up moving more towards the midpoint.
+    def _adjust_viewport(self, viewport, width, pos, bounds):
+        """Adjust the given `viewport` span so that it's the given `width`,
+        contains the point `pos`, and doesn't unnecessarily exceed `bounds`
+        (the span of the map).
 
-        Return `(delta_start, delta_end)`, the amount of space that should be
-        added to the start and end sides.
+        Returns a new `Span`.
         """
-        assert start <= pos <= end
-        # OK here is an ASCII chart.
-        # |---------P---|
-        # We split the delta into parts proportional to how P divides the
-        # available space.  Then the bigger part goes toward the near side,
-        # and the smaller part goes toward the far side.  Note that even if the
-        # delta is negative, the "bigger" part will actually be the least
-        # negative, and thus reduce the near side the least.
-
-        if not delta:
-            # That was easy!
-            return 0, 0
-
-        start_offset = pos - start
-        end_offset = end - pos
-
-        start_fraction = start_offset / (end - start + 1)
-        d1 = start_fraction * delta
-
-        # We have floats right now, and want integers.  Always round the
-        # smaller fraction up, to keep the parts as close to equal as possible.
-        if start_fraction < 0.5:
-            d1 += 0.5
-        d1 = int(d1)
-        d2 = delta - d1
-
-        # OK, got our parts.  First make sure we know which is smaller (put it
-        # in d1), then return the smaller one for the smaller of the gaps.
-        if d1 > d2:
-            d1, d2 = d2, d1
-
-        if start_offset < end_offset:
-            return d1, d2
-        else:
-            return d2, d1
-
-    def render(self, size, focus=False):
-        size = Size(*size)
-        player_position = self.world.current_map.find(self.world.player).position
-
         # The goal here is to scroll the map /as little as possible/, to reduce
         # the changes we'll have to write to the terminal.  Reduces flicker,
         # helps with lag when played over a network, and lets the player move
         # around without feeling like it's just the map scrolling instead.
-        # TODO i suspect this is ripe for some simplification, ho ho, but
-        # moving a rectangle around with multiple subtle rules is awkward.
 
-        if self.prior_map_view:
-            map_view = self.prior_map_view
-            center = map_view.center()
+        # Make sure the player position is actually visible to start with
+        viewport = viewport.shift_into_view(pos)
 
-            # Two steps here.
-            # 1. If the size changed, add/remove the extra space proportional
-            # to the player's position.
-            # Here is an ASCII chart.
-            # |---------P---|
-            # We split the delta into parts proportional to how P divides the
-            # available space (here, 3/4 and 1/4).  Then the bigger part (or
-            # least negative) goes towards the smaller side, and the other goes
-            # towards the bigger side.  So we bias towards moving the player
-            # towards the middle of the screen.
-            shift = {}
-            dw = size.width - self.prior_map_view.width
-            dh = size.height - self.prior_map_view.height
+        # Two steps here.
+        # 1. If the size changed, position the new size so the player is still
+        # roughly the same relative distance across the screen.
+        viewport = viewport.scale(width, pivot=pos)
 
-            if dw:
-                dw_left, dw_right = self._distribute_space(
-                    map_view.left, map_view.right, player_position.x, dw)
+        # 2. If the player is no longer within the map view (excluding the
+        # border of MAP_MARGIN), shift the view towards the player.
+        # BUT!  Avoid having needless space on the bottom and right, and avoid
+        # having ANY space on the top and left.
 
-                # We want to move the edges out from the center, so the left
-                # edge is actually moving the other direction
-                shift['left'] = - dw_left
-                shift['right'] = dw_right
+        # Shrink the margin so that it's less than half the viewport.  So if
+        # MAP_MARGIN is 4, but the viewport is only 6 wide, cut it down to 2.
+        margin = min(self.MAP_MARGIN, (width - 1) // 2)
 
-            if dh:
-                dh_top, dh_bottom = self._distribute_space(
-                    map_view.top, map_view.bottom, player_position.y, dh)
+        # Need to move the viewport by the distance from the left margin to the
+        # player, if that distance is < 0, and reverse for the right margin
+        viewport = viewport.shift_into_view(pos, margin=margin)
 
-                # Same as above
-                shift['top'] = - dh_top
-                shift['bottom'] = dh_bottom
+        # We never want empty space on the leading side, so start cannot go
+        # below map.start (0).  We want to /avoid/ empty space on the trailing
+        # side, so end cannot go above map.end...  unless the map is smaller
+        # than the viewport, in which case it can go until map.start + width.
+        move = max(0, bounds.start - viewport.start)
+        move = min(move, max(bounds.end, bounds.start + width) - viewport.end)
 
+        return viewport + move
 
-            if shift:
-                map_view = map_view.shift(**shift)
-            assert map_view.size == size, (
-                "expected map_view {!r} to have size {!r} "
-                "after shifting edges, but got {!r}".format(
-                    self.prior_map_view, size, map_view))
+    def render(self, size, focus=False):
+        size = Size(*size)
+        map = self.world.current_map
+        map_rect = map.rect
+        player_position = map.find(self.world.player).position
 
-            # 2. If the player is no longer within the map view (excluding the
-            # border of MAP_MARGIN), shift the view towards the player.
-            center = map_view.center()
-            move_x = move_y = 0
+        if not self.viewport:
+            # Let's pretend the map itself is the viewport, and the below logic
+            # can adjust it as necessary.
+            self.viewport = self.world.current_map.rect
 
-            # For extreme cases, shrink the margin so that it's less than half
-            # the playing field.  So if MAP_MARGIN is 4, but the screen is only
-            # 6 cells wide, cut it down to 2.
-            margin_x = min(self.MAP_MARGIN, (size.width - 1) // 2)
-            margin_y = min(self.MAP_MARGIN, (size.height - 1) // 2)
+        horizontal = self._adjust_viewport(
+            self.viewport.horizontal_span,
+            size.width,
+            player_position.x,
+            map.rect.horizontal_span,
+        )
+        vertical = self._adjust_viewport(
+            self.viewport.vertical_span,
+            size.height,
+            player_position.y,
+            map.rect.vertical_span,
+        )
 
-            left_offset = player_position.x - map_view.left
-            right_offset = map_view.right - player_position.x
-            if left_offset < margin_x:
-                # Move the viewport further left
-                move_x = left_offset - margin_x
-            elif right_offset < margin_x:
-                move_x = margin_x - right_offset
+        self.viewport = Rectangle.from_spans(
+            horizontal=horizontal, vertical=vertical)
 
-            top_offset = player_position.y - map_view.top
-            bottom_offset = map_view.bottom - player_position.y
-            if top_offset < margin_y:
-                # Move the viewport further up
-                move_y = top_offset - margin_y
-            elif bottom_offset < margin_y:
-                move_y = margin_y - bottom_offset
+        # viewport is from the pov of the map; negate it to get how much space
+        # is added or removed around the map
+        pad_left = - self.viewport.left
+        pad_top = - self.viewport.top
+        pad_right  = (size.width - pad_left) - map_rect.width
+        pad_bottom = (size.height - pad_top) - map_rect.height
 
-            if move_x or move_y:
-                map_view = map_view.shift(
-                    left=move_x, right=move_x, top=move_y, bottom=move_y)
-
-        else:
-            # OK, well, this is the first time we're drawing the map at all.
-            # In this case we just center the player.
-            map_view = Rectangle.centered_at(size, player_position)
-
-        # Finally, avoid showing void space as much as possible.  If there has
-        # to be extra space, prefer putting it towards the bottom and right.
-        # TODO this can definitely be simpler wtf
-        map_rect = self.world.current_map.rect
-        if map_view.right > map_rect.right:
-            dx = map_rect.right - map_view.right
-            map_view = map_view.shift(left=dx, right=dx)
-        if map_view.left < 0:
-            dx = - map_view.left
-            map_view = map_view.shift(left=dx, right=dx)
-
-        if map_view.bottom > map_rect.bottom:
-            dy = map_rect.bottom - map_view.bottom
-            map_view = map_view.shift(top=dy, bottom=dy)
-        if map_view.top < 0:
-            dy = - map_view.top
-            map_view = map_view.shift(top=dy, bottom=dy)
-
-        self.prior_map_view = map_view
-
-        # map_view is from the pov of the map; negate it to get the pov of the
-        # canvas
-        canvas_left = - map_view.left
-        canvas_top = - map_view.top
-        canvas_right  = (size.width - canvas_left) - map_rect.width
-        canvas_bottom = (size.height - canvas_top) - map_rect.height
-
+        # TODO it's unclear when you're near the edge of the map, which i hate.
+        # should either show a clear border past the map edge, or show some
+        # kinda fade or whatever along a cut-off edge
         map_canvas = urwid.CompositeCanvas(self.canvas)
-        map_canvas.pad_trim_left_right(canvas_left, canvas_right)
-        map_canvas.pad_trim_top_bottom(canvas_top, canvas_bottom)
+        map_canvas.pad_trim_left_right(pad_left, pad_right)
+        map_canvas.pad_trim_top_bottom(pad_top, pad_bottom)
         return map_canvas
 
     def keypress(self, size, key):
