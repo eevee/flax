@@ -57,6 +57,12 @@ class World:
 
         # TODO should go in turn order
         for actor in actors:
+            # TODO gross hack, that will hopefully just go away when this works
+            # better  :(  if an earlier run of this loop caused an actor to no
+            # longer be on the map, we shouldn't try to make it act
+            if actor not in self.current_map.entity_positions:
+                continue
+
             IActor(actor).act(self)
             self.drain_event_queue()
 
