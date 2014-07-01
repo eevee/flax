@@ -53,6 +53,16 @@ class Walk(Event):
         return map.tiles[new_pos]
 
 
+class Descend(Event):
+    def __init__(self, actor):
+        self.actor = actor
+
+    @property
+    def target(self):
+        map = self.world.current_map
+        return map.find(self.actor)
+
+
 class PickUp(Event):
     def __init__(self, actor, item):
         self.actor = actor

@@ -24,7 +24,7 @@ class Map:
 
     @player.setter
     def player(self, value):
-        assert self._player is None, "trying to set player when we've already got one!"
+        assert self._player is None, "trying to set player when we've already got one! {} {}".format(id(self._player), id(value))
         self._player = value
 
     @player.deleter

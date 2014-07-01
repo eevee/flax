@@ -58,22 +58,22 @@ class MainWidget(urwid.WidgetWrap):
 
 
 class CellCanvas(urwid.Canvas):
-    def __init__(self, map):
-        self.map = map
+    def __init__(self, world):
+        self.world = world
 
         super().__init__()
 
     def rows(self):
-        return self.map.rect.height
+        return self.world.current_map.rect.height
 
     def cols(self):
-        return self.map.rect.width
+        return self.world.current_map.rect.width
 
     def translated_coords(self, dx, dy):
         return None
 
     def content(self, trim_left=0, trim_top=0, cols=None, rows=None, attr=None):
-        for row in islice(self.map.rows, trim_top, trim_top + rows):
+        for row in islice(self.world.current_map.rows, trim_top, trim_top + rows):
             ret = []
             current_attr = None
             current_glyphs = []
@@ -107,7 +107,7 @@ class CellWidget(urwid.Widget):
         super().__init__()
 
         self.world = world
-        self.canvas = CellCanvas(world.current_map)
+        self.canvas = CellCanvas(world)
 
         self.viewport = None
 
@@ -200,6 +200,7 @@ class CellWidget(urwid.Widget):
         if key == 'q':
             raise urwid.ExitMainLoop
 
+        from flax.event import Descend
         from flax.event import PickUp
         from flax.event import Equip
         from flax.event import Unequip
@@ -213,6 +214,8 @@ class CellWidget(urwid.Widget):
             event = self.world.player_action_from_direction(Direction.left)
         elif key == 'right':
             event = self.world.player_action_from_direction(Direction.right)
+        elif key == '>':
+            event = Descend(self.world.player)
         elif key == ',':
             tile = self.world.current_map.find(self.world.player)
             # TODO might consolidate this to a single event later if it fucks

@@ -2,7 +2,7 @@ import random
 
 from flax.geometry import Point, Rectangle, Size
 from flax.map import Map
-from flax.entity import CaveWall, Wall, Floor, Tree, Grass, CutGrass, Dirt, Player, Salamango, Armor
+from flax.entity import Entity, CaveWall, Wall, Floor, Tree, Grass, CutGrass, Dirt, Player, Salamango, Armor
 
 
 class MapCanvas:
@@ -37,15 +37,22 @@ class MapCanvas:
             if arch is Floor:
                 yield point
 
+    def maybe_create(self, type_or_thing):
+        if isinstance(type_or_thing, Entity):
+            return type_or_thing
+        else:
+            return type_or_thing()
+
     def to_map(self):
         map = Map(self.rect.size)
+        maybe_create = self.maybe_create
 
         for point in self.rect.iter_points():
-            map.place(self.arch_grid[point](), point)
+            map.place(maybe_create(self.arch_grid[point]), point)
             for item_type in self.item_grid[point]:
-                map.place(item_type(), point)
+                map.place(maybe_create(item_type), point)
             if self.creature_grid[point]:
-                map.place(self.creature_grid[point](), point)
+                map.place(maybe_create(self.creature_grid[point]), point)
 
         return map
 
@@ -83,6 +90,20 @@ class Fractor:
         self.map_canvas.creature_grid[points[0]] = Player
         self.map_canvas.creature_grid[points[1]] = Salamango
         self.map_canvas.item_grid[points[2]].append(Armor)
+
+    def place_portal(self, destination):
+        from flax.component import IPortal
+        from flax.entity import Portal
+
+        # TODO should be able to maybe pass in attribute definitions directly?
+        portal = Portal()
+        portal.component_data[IPortal['destination']] = destination
+
+        floor_points = list(self.map_canvas.find_floor_points())
+        assert floor_points, "can't place portal with no open spaces"
+        point = random.choice(floor_points)
+        self.map_canvas.arch_grid[point] = portal
+
 
 
 class BinaryPartitionFractor(Fractor):
@@ -186,14 +207,19 @@ class PerlinFractor(Fractor):
             self.map_canvas.arch_grid[point] = arch
 
 
-def generate_map():
+def generate_map(start=False, down=None):
     map_canvas = MapCanvas(Size(80, 24))
 
     perlin_fractor = PerlinFractor(map_canvas)
     perlin_fractor.draw_something_something_rename_me()
 
     fractor = Fractor(map_canvas)
-    fractor.place_player()
+    if start:
+        fractor.place_player()
+
+    if down:
+        fractor.place_portal(down)
+
     return map_canvas.to_map()
 
     # TODO probably need to start defining different map generation schemes and

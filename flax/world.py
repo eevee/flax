@@ -4,6 +4,21 @@ from flax.component import IActor
 from flax.fractor import generate_map
 
 
+class FloorPlan:
+    """Layout of the maps."""
+    # Will also take care of saving and loading later, maybe?
+    def __init__(self):
+        # I suppose for now we'll just hardcode this, but...
+        # TODO how will all this work?  where do the connections between maps
+        # live?  do we decide the general structure (e.g. a split-off section
+        # of the dungeon with X floors) and then tell the fractors to conform
+        # to that?
+        self.maps = {}
+        self.maps['map0'] = generate_map(start=True, down='map1')
+        self.maps['map1'] = generate_map(down='map0')
+        self.starting_map_name = 'map0'
+
+
 class World:
     """The world.  Contains the core implementations of event handling and
     player action handling.  Eventually will control loading/saving, generating
@@ -12,8 +27,8 @@ class World:
     def __init__(self):
         # TODO how to store the maps, to make looking through them a little
         # saner?
-        self.maps = [generate_map()]
-        self.current_map = self.maps[0]
+        self.floor_plan = FloorPlan()
+        self.current_map = self.floor_plan.maps[self.floor_plan.starting_map_name]
 
         self.player_action_queue = deque()
         self.event_queue = deque()
@@ -21,6 +36,16 @@ class World:
     @property
     def player(self):
         return self.current_map.player
+
+    def change_map(self, map_name):
+        # TODO refund time?
+        self.event_queue.clear()
+
+        player = self.player
+        self.current_map.remove(player)
+        self.current_map = self.floor_plan.maps[map_name]
+        # TODO find matching stairs
+        self.current_map.place(player, (1, 1))
 
     def push_player_action(self, event):
         self.player_action_queue.append(event)
