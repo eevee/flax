@@ -4,7 +4,7 @@ import zope.interface as zi
 
 from flax.event import PickUp
 from flax.event import MeleeAttack, Damage, Die
-from flax.event import Walk, Descend
+from flax.event import Ascend, Descend, Walk
 from flax.event import Equip
 from flax.event import Unequip
 
@@ -181,6 +181,14 @@ class IPortal(IComponent):
 class PortalDownstairs(Component):
     @handler(Descend)
     def handle_descend(self, event):
+        # TODO self.destination should work here!
+        event.world.change_map(self.entity.component_data[IPortal['destination']])
+
+
+@zi.implementer(IPortal)
+class PortalUpstairs(Component):
+    @handler(Ascend)
+    def handle_ascend(self, event):
         # TODO self.destination should work here!
         event.world.change_map(self.entity.component_data[IPortal['destination']])
 

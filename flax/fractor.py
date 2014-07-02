@@ -2,7 +2,7 @@ import random
 
 from flax.geometry import Point, Rectangle, Size
 from flax.map import Map
-from flax.entity import Entity, CaveWall, Wall, Floor, Tree, Grass, CutGrass, Dirt, Player, Salamango, Armor
+from flax.entity import Entity, CaveWall, Wall, Floor, Tree, Grass, CutGrass, Dirt, Player, Salamango, Armor, StairsDown, StairsUp
 
 
 class MapCanvas:
@@ -91,12 +91,11 @@ class Fractor:
         self.map_canvas.creature_grid[points[1]] = Salamango
         self.map_canvas.item_grid[points[2]].append(Armor)
 
-    def place_portal(self, destination):
+    def place_portal(self, portal_type, destination):
         from flax.component import IPortal
-        from flax.entity import Portal
 
         # TODO should be able to maybe pass in attribute definitions directly?
-        portal = Portal()
+        portal = portal_type()
         portal.component_data[IPortal['destination']] = destination
 
         floor_points = list(self.map_canvas.find_floor_points())
@@ -207,7 +206,7 @@ class PerlinFractor(Fractor):
             self.map_canvas.arch_grid[point] = arch
 
 
-def generate_map(start=False, down=None):
+def generate_map(start=False, up=None, down=None):
     map_canvas = MapCanvas(Size(80, 24))
 
     perlin_fractor = PerlinFractor(map_canvas)
@@ -217,8 +216,10 @@ def generate_map(start=False, down=None):
     if start:
         fractor.place_player()
 
+    if up:
+        fractor.place_portal(StairsUp, up)
     if down:
-        fractor.place_portal(down)
+        fractor.place_portal(StairsDown, down)
 
     return map_canvas.to_map()
 

@@ -63,6 +63,16 @@ class Descend(Event):
         return map.find(self.actor)
 
 
+class Ascend(Event):
+    def __init__(self, actor):
+        self.actor = actor
+
+    @property
+    def target(self):
+        map = self.world.current_map
+        return map.find(self.actor)
+
+
 class PickUp(Event):
     def __init__(self, actor, item):
         self.actor = actor

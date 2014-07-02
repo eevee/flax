@@ -20,6 +20,7 @@ PALETTE = [
 
     # Architecture
     ('floor', 'black', 'default', None, '#666', 'default'),
+    ('stairs', 'white', 'dark gray', None, '#aaa', 'g19'),
     ('grass', 'dark green', 'default', None, '#060', 'default'),
     ('dirt', 'brown', 'default', None, '#960', 'default'),
 
@@ -58,22 +59,22 @@ class MainWidget(urwid.WidgetWrap):
 
 
 class CellCanvas(urwid.Canvas):
-    def __init__(self, world):
-        self.world = world
+    def __init__(self, map):
+        self.map = map
 
         super().__init__()
 
     def rows(self):
-        return self.world.current_map.rect.height
+        return self.map.rect.height
 
     def cols(self):
-        return self.world.current_map.rect.width
+        return self.map.rect.width
 
     def translated_coords(self, dx, dy):
         return None
 
     def content(self, trim_left=0, trim_top=0, cols=None, rows=None, attr=None):
-        for row in islice(self.world.current_map.rows, trim_top, trim_top + rows):
+        for row in islice(self.map.rows, trim_top, trim_top + rows):
             ret = []
             current_attr = None
             current_glyphs = []
@@ -107,7 +108,6 @@ class CellWidget(urwid.Widget):
         super().__init__()
 
         self.world = world
-        self.canvas = CellCanvas(world)
 
         self.viewport = None
 
@@ -190,7 +190,7 @@ class CellWidget(urwid.Widget):
         # TODO it's unclear when you're near the edge of the map, which i hate.
         # should either show a clear border past the map edge, or show some
         # kinda fade or whatever along a cut-off edge
-        map_canvas = urwid.CompositeCanvas(self.canvas)
+        map_canvas = urwid.CompositeCanvas(CellCanvas(map))
         map_canvas.pad_trim_left_right(pad_left, pad_right)
         map_canvas.pad_trim_top_bottom(pad_top, pad_bottom)
         return map_canvas
@@ -200,6 +200,7 @@ class CellWidget(urwid.Widget):
         if key == 'q':
             raise urwid.ExitMainLoop
 
+        from flax.event import Ascend
         from flax.event import Descend
         from flax.event import PickUp
         from flax.event import Equip
@@ -216,6 +217,8 @@ class CellWidget(urwid.Widget):
             event = self.world.player_action_from_direction(Direction.right)
         elif key == '>':
             event = Descend(self.world.player)
+        elif key == '<':
+            event = Ascend(self.world.player)
         elif key == ',':
             tile = self.world.current_map.find(self.world.player)
             # TODO might consolidate this to a single event later if it fucks

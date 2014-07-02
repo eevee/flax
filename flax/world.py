@@ -15,7 +15,7 @@ class FloorPlan:
         # to that?
         self.maps = {}
         self.maps['map0'] = generate_map(start=True, down='map1')
-        self.maps['map1'] = generate_map(down='map0')
+        self.maps['map1'] = generate_map(up='map0')
         self.starting_map_name = 'map0'
 
 

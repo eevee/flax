@@ -11,7 +11,7 @@ from flax.component import Container
 from flax.component import Portable
 from flax.component import Equipment
 from flax.component import GenericAI, PlayerIntelligence
-from flax.component import PortalDownstairs
+from flax.component import PortalDownstairs, PortalUpstairs
 
 
 class Layer(Enum):
@@ -120,12 +120,16 @@ class Entity:
 
 Architecture = partial(EntityType, layer=Layer.architecture)
 
-# should be stairs later, but you get the idea, whatever
-Portal = Architecture(
+StairsDown = Architecture(
     Empty,
     PortalDownstairs,
-    name='portal',
-    tmp_rendering=('⧖', 'default'))
+    name='stairs',
+    tmp_rendering=('𝆲', 'stairs'))
+StairsUp = Architecture(
+    Empty,
+    PortalUpstairs,
+    name='stairs',
+    tmp_rendering=('𝆱', 'stairs'))
 
 CaveWall = Architecture(
     Solid,
