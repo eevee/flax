@@ -14,6 +14,9 @@ class MapCanvas:
         self.creature_grid = {point: None for point in self.rect.iter_points()}
 
     def draw_room(self, rect):
+        # TODO i think this should probably return a Room or something, and
+        # hold off on drawing the walls yet, so we can erode them a bit and
+        # then add line-drawing walls later
         assert rect in self.rect
 
         for point in rect.iter_points():
@@ -68,19 +71,43 @@ def random_rect_in_rect(area, size):
 
 
 class Fractor:
-    def __init__(self, map_canvas, region=None):
-        self.map_canvas = map_canvas
+    """The agent noun form of 'fractal'.  An object that generates maps in a
+    particular style.
+
+    This is a base class, containing some generally-useful functionality; the
+    interesting differentiation happens in subclasses.
+    """
+    def __init__(self, map_size, region=None):
+        self.map_canvas = MapCanvas(map_size)
         if region is None:
-            self.region = map_canvas.rect
+            self.region = self.map_canvas.rect
         else:
             self.region = region
 
-    def refract(self, fractor_cls, **kwargs):
-        return fractor_cls(self.map_canvas, self.region, **kwargs)
+    def generate_map(self, start=False, up=None, down=None):
+        """The method you probably want to call.  Does some stuff, then spits
+        out a map.
+        """
+        self.generate()
 
-    def generate_room(self):
-        room_size = Size(5, 5)
-        room_rect = random_rect_in_rect(self.region, room_size)
+        if start:
+            self.place_player()
+
+        if up:
+            self.place_portal(StairsUp, up)
+        if down:
+            self.place_portal(StairsDown, down)
+
+        return self.map_canvas.to_map()
+
+    def generate(self):
+        """Implement in subclasses.  Ought to do something to the canvas."""
+        raise NotImplementedError
+
+    # Utility methods follow
+
+    def generate_room(self, region, room_size=Size(8, 8)):
+        room_rect = random_rect_in_rect(region, room_size)
         self.map_canvas.draw_room(room_rect)
 
     def place_player(self):
@@ -98,11 +125,11 @@ class Fractor:
         portal = portal_type()
         portal.component_data[IPortal['destination']] = destination
 
+        # TODO would rather the map canvas just keep track of this directly
         floor_points = list(self.map_canvas.find_floor_points())
         assert floor_points, "can't place portal with no open spaces"
         point = random.choice(floor_points)
         self.map_canvas.arch_grid[point] = portal
-
 
 
 class BinaryPartitionFractor(Fractor):
@@ -114,6 +141,11 @@ class BinaryPartitionFractor(Fractor):
     # will ever do is spit out a list of other regions, and it has to construct
     # a bunch of other copies of itself to do that...
 
+    def generate(self):
+        regions = self.maximally_partition()
+        for region in regions:
+            self.generate_room(region)
+
     def maximally_partition(self):
         # TODO this should preserve the tree somehow, so a hallway can be drawn
         # along the edges
@@ -123,12 +155,7 @@ class BinaryPartitionFractor(Fractor):
         while regions:
             nonfinal_regions = []
             for region in regions:
-                fractor = BinaryPartitionFractor(
-                    self.map_canvas,
-                    region,
-                    minimum_size=self.minimum_size,
-                )
-                new_regions = fractor.partition()
+                new_regions = self.partition(region)
                 if len(new_regions) > 1:
                     nonfinal_regions.extend(new_regions)
                 else:
@@ -138,57 +165,61 @@ class BinaryPartitionFractor(Fractor):
 
         return final_regions
 
-    def partition(self):
+    def partition(self, region):
         possible_directions = []
 
-        # TODO this needs a chance to stop before hitting the minimum size
+        # TODO this needs a chance to stop before hitting the minimum size --
+        # some sort of ramp-down where larger sizes are much less likely.  a
+        # bit awkward though since just not dividing means we end up with a
+        # room 2x the minimum size.  maybe the partitioning needs tweaking too,
+        # like normal curve or something.
 
-        if self.region.height >= self.minimum_size.height * 2:
+        if region.height >= self.minimum_size.height * 2:
             possible_directions.append(self.partition_horizontal)
-        if self.region.width >= self.minimum_size.width * 2:
+        if region.width >= self.minimum_size.width * 2:
             possible_directions.append(self.partition_vertical)
 
         if possible_directions:
             method = random.choice(possible_directions)
-            return method()
+            return method(region)
         else:
-            return [self.region]
+            return [region]
 
-    def partition_horizontal(self):
+    def partition_horizontal(self, region):
         # We're looking for the far edge of the top partition, so subtract 1
         # to allow it on the border of the minimum size
-        top = self.region.top + self.minimum_size.height - 1
-        bottom = self.region.bottom - self.minimum_size.height
+        top = region.top + self.minimum_size.height - 1
+        bottom = region.bottom - self.minimum_size.height
 
         if top > bottom:
-            return [self.region]
+            return [region]
 
         midpoint = random.randrange(top, bottom + 1)
 
         return [
-            self.region.replace(bottom=midpoint),
-            self.region.replace(top=midpoint + 1),
+            region.replace(bottom=midpoint),
+            region.replace(top=midpoint + 1),
         ]
 
-    def partition_vertical(self):
+    def partition_vertical(self, region):
         # We're looking for the far edge of the left partition, so subtract 1
         # to allow it on the border of the minimum size
-        left = self.region.left + self.minimum_size.width - 1
-        right = self.region.right - self.minimum_size.width
+        left = region.left + self.minimum_size.width - 1
+        right = region.right - self.minimum_size.width
 
         if left > right:
-            return [self.region]
+            return [region]
 
         midpoint = random.randrange(left, right + 1)
 
         return [
-            self.region.replace(right=midpoint),
-            self.region.replace(left=midpoint + 1),
+            region.replace(right=midpoint),
+            region.replace(left=midpoint + 1),
         ]
 
 
 class PerlinFractor(Fractor):
-    def draw_something_something_rename_me(self):
+    def generate(self):
         from flax.noise import discrete_perlin_noise_factory
         noise = discrete_perlin_noise_factory(*self.region.size, resolution=4, octaves=2)
         for point in self.region.iter_points():
@@ -204,34 +235,3 @@ class PerlinFractor(Fractor):
             else:
                 arch = Tree
             self.map_canvas.arch_grid[point] = arch
-
-
-def generate_map(start=False, up=None, down=None):
-    map_canvas = MapCanvas(Size(80, 24))
-
-    perlin_fractor = PerlinFractor(map_canvas)
-    perlin_fractor.draw_something_something_rename_me()
-
-    fractor = Fractor(map_canvas)
-    if start:
-        fractor.place_player()
-
-    if up:
-        fractor.place_portal(StairsUp, up)
-    if down:
-        fractor.place_portal(StairsDown, down)
-
-    return map_canvas.to_map()
-
-    # TODO probably need to start defining different map generation schemes and
-    # figure out how to let the world choose which one it wants
-    bsp_fractor = BinaryPartitionFractor(map_canvas, minimum_size=Size(8, 8))
-    regions = bsp_fractor.maximally_partition()
-
-    for region in regions:
-        fractor = Fractor(map_canvas, region)
-        fractor.generate_room()
-
-    fractor = Fractor(map_canvas)
-    fractor.place_player()
-    return map_canvas.to_map()

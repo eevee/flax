@@ -1,7 +1,9 @@
 from collections import deque
 
 from flax.component import IActor
-from flax.fractor import generate_map
+from flax.fractor import BinaryPartitionFractor
+from flax.fractor import PerlinFractor
+from flax.geometry import Size
 
 
 class FloorPlan:
@@ -14,8 +16,8 @@ class FloorPlan:
         # of the dungeon with X floors) and then tell the fractors to conform
         # to that?
         self.maps = {}
-        self.maps['map0'] = generate_map(start=True, down='map1')
-        self.maps['map1'] = generate_map(up='map0')
+        self.maps['map0'] = PerlinFractor(Size(80, 24)).generate_map(start=True, down='map1')
+        self.maps['map1'] = BinaryPartitionFractor(Size(80, 24), minimum_size=Size(10, 10)).generate_map(up='map0')
         self.starting_map_name = 'map0'
 
 
