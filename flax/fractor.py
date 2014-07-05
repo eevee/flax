@@ -3,15 +3,40 @@ import random
 from flax.geometry import Point, Rectangle, Size
 from flax.map import Map
 from flax.entity import Entity, CaveWall, Wall, Floor, Tree, Grass, CutGrass, Dirt, Player, Salamango, Armor, StairsDown, StairsUp
+from flax.component import IPhysics, Empty
 
 
 class MapCanvas:
     def __init__(self, size):
         self.rect = size.to_rect(Point.origin())
 
-        self.arch_grid = {point: CaveWall for point in self.rect.iter_points()}
-        self.item_grid = {point: [] for point in self.rect.iter_points()}
-        self.creature_grid = {point: None for point in self.rect.iter_points()}
+        # TODO i think using types instead of entities /most of the time/ is
+        # more trouble than it's worth
+        self._arch_grid = {point: CaveWall for point in self.rect.iter_points()}
+        self._item_grid = {point: [] for point in self.rect.iter_points()}
+        self._creature_grid = {point: None for point in self.rect.iter_points()}
+
+        self.floor_spaces = set()
+
+    def set_architecture(self, point, entity_type):
+        self._arch_grid[point] = entity_type
+
+        # TODO this is a little hacky, but it's unclear how this /should/ work
+        # before there are other kinds of physics
+        if isinstance(entity_type, Entity):
+            entity_type = entity_type.type
+
+        if entity_type.components.get(IPhysics) is Empty:
+            self.floor_spaces.add(point)
+        else:
+            self.floor_spaces.discard(point)
+
+    def add_item(self, point, entity_type):
+        self._item_grid[point].append(entity_type)
+
+    def set_creature(self, point, entity_type):
+        #assert entity_type.layer is Layer.creature
+        self._creature_grid[point] = entity_type
 
     def draw_room(self, rect):
         # TODO i think this should probably return a Room or something, and
@@ -20,25 +45,17 @@ class MapCanvas:
         assert rect in self.rect
 
         for point in rect.iter_points():
-            self.arch_grid[point] = random.choice([Floor, CutGrass, CutGrass, Grass])
+            self.set_architecture(point, random.choice([Floor, CutGrass, CutGrass, Grass]))
 
         # Top and bottom
         for x in rect.range_width():
-            self.arch_grid[Point(x, rect.top)] = Wall
-            self.arch_grid[Point(x, rect.bottom)] = Wall
+            self.set_architecture(Point(x, rect.top), Wall)
+            self.set_architecture(Point(x, rect.bottom), Wall)
 
         # Left and right (will hit corners again, whatever)
         for y in rect.range_height():
-            self.arch_grid[Point(rect.left, y)] = Wall
-            self.arch_grid[Point(rect.right, y)] = Wall
-
-    def find_floor_points(self):
-        for point, arch in self.arch_grid.items():
-            # TODO surely other things are walkable
-            # TODO maybe this should be a more general method
-            # TODO also should exclude a point with existing creature
-            if arch is Floor:
-                yield point
+            self.set_architecture(Point(rect.left, y), Wall)
+            self.set_architecture(Point(rect.right, y), Wall)
 
     def maybe_create(self, type_or_thing):
         if isinstance(type_or_thing, Entity):
@@ -51,11 +68,11 @@ class MapCanvas:
         maybe_create = self.maybe_create
 
         for point in self.rect.iter_points():
-            map.place(maybe_create(self.arch_grid[point]), point)
-            for item_type in self.item_grid[point]:
+            map.place(maybe_create(self._arch_grid[point]), point)
+            for item_type in self._item_grid[point]:
                 map.place(maybe_create(item_type), point)
-            if self.creature_grid[point]:
-                map.place(maybe_create(self.creature_grid[point]), point)
+            if self._creature_grid[point]:
+                map.place(maybe_create(self._creature_grid[point]), point)
 
         return map
 
@@ -111,12 +128,11 @@ class Fractor:
         self.map_canvas.draw_room(room_rect)
 
     def place_player(self):
-        floor_points = list(self.map_canvas.find_floor_points())
-        assert floor_points, "can't place player with no open spaces"
-        points = random.sample(floor_points, 3)
-        self.map_canvas.creature_grid[points[0]] = Player
-        self.map_canvas.creature_grid[points[1]] = Salamango
-        self.map_canvas.item_grid[points[2]].append(Armor)
+        assert self.map_canvas.floor_spaces, "can't place player with no open spaces"
+        points = random.sample(list(self.map_canvas.floor_spaces), 3)
+        self.map_canvas.set_creature(points[0], Player)
+        self.map_canvas.set_creature(points[1], Salamango)
+        self.map_canvas.add_item(points[2], Armor)
 
     def place_portal(self, portal_type, destination):
         from flax.component import IPortal
@@ -125,21 +141,17 @@ class Fractor:
         portal = portal_type()
         portal.component_data[IPortal['destination']] = destination
 
-        # TODO would rather the map canvas just keep track of this directly
-        floor_points = list(self.map_canvas.find_floor_points())
-        assert floor_points, "can't place portal with no open spaces"
-        point = random.choice(floor_points)
-        self.map_canvas.arch_grid[point] = portal
+
+        # TODO not guaranteed
+        assert self.map_canvas.floor_spaces, "can't place portal with no open spaces"
+        point = random.choice(list(self.map_canvas.floor_spaces))
+        self.map_canvas.set_architecture(point, portal)
 
 
 class BinaryPartitionFractor(Fractor):
     def __init__(self, *args, minimum_size):
         super().__init__(*args)
         self.minimum_size = minimum_size
-
-    # TODO i feel like this class doesn't quite...  do...  anything.  all it
-    # will ever do is spit out a list of other regions, and it has to construct
-    # a bunch of other copies of itself to do that...
 
     def generate(self):
         regions = self.maximally_partition()
@@ -220,6 +232,7 @@ class BinaryPartitionFractor(Fractor):
 
 class PerlinFractor(Fractor):
     def generate(self):
+        # TODO not guaranteed that all the walkable spaces are attached
         from flax.noise import discrete_perlin_noise_factory
         noise = discrete_perlin_noise_factory(*self.region.size, resolution=4, octaves=2)
         for point in self.region.iter_points():
@@ -234,4 +247,4 @@ class PerlinFractor(Fractor):
                 arch = Grass
             else:
                 arch = Tree
-            self.map_canvas.arch_grid[point] = arch
+            self.map_canvas.set_architecture(point, arch)
