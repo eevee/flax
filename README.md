@@ -7,6 +7,7 @@ You will need:
 * Python 3.3+
 * `urwid`
 * `zope.interface`
+* `enum34` (if you're using Python 3.3)
 
 Run it with:
 
