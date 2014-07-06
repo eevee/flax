@@ -55,6 +55,10 @@ class Size(tuple):
     def height(self):
         return self[1]
 
+    @property
+    def area(self):
+        return self.width * self.height
+
     def to_rect(self, point):
         return Rectangle(point, self)
 

@@ -1,9 +1,48 @@
+import math
 import random
 
 from flax.geometry import Point, Rectangle, Size
 from flax.map import Map
 from flax.entity import Entity, CaveWall, Wall, Floor, Tree, Grass, CutGrass, Dirt, Player, Salamango, Armor, StairsDown, StairsUp
 from flax.component import IPhysics, Empty
+
+
+def random_normal_int(mu, sigma):
+    """Return a normally-distributed random integer, given a mean and standard
+    deviation.  The return value is guaranteed never to lie outside µ ± 3σ, and
+    anything beyond µ ± 2σ is very unlikely (4% total).
+    """
+    ret = int(random.gauss(mu, sigma) + 0.5)
+
+    # We have to put a limit /somewhere/, and the roll is only outside these
+    # bounds 0.3% of the time.
+    lb = int(math.ceil(mu - 2 * sigma))
+    ub = int(math.floor(mu + 2 * sigma))
+
+    if ret < lb:
+        return lb
+    elif ret > ub:
+        return ub
+    else:
+        return ret
+
+
+def random_normal_range(lb, ub):
+    """Return a normally-distributed random integer, given an upper bound and
+    lower bound.  Like `random_normal_int`, but explicitly specifying the
+    limits.  Return values will be clustered around the midpoint.
+    """
+    # Like above, we assume the lower and upper bounds are 6σ apart
+    mu = (lb + ub) / 2
+    sigma = (ub - lb) / 4
+    ret = int(random.gauss(mu, sigma) + 0.5)
+
+    if ret < lb:
+        return lb
+    elif ret > ub:
+        return ub
+    else:
+        return ret
 
 
 class MapCanvas:
@@ -38,25 +77,6 @@ class MapCanvas:
         #assert entity_type.layer is Layer.creature
         self._creature_grid[point] = entity_type
 
-    def draw_room(self, rect):
-        # TODO i think this should probably return a Room or something, and
-        # hold off on drawing the walls yet, so we can erode them a bit and
-        # then add line-drawing walls later
-        assert rect in self.rect
-
-        for point in rect.iter_points():
-            self.set_architecture(point, random.choice([Floor, CutGrass, CutGrass, Grass]))
-
-        # Top and bottom
-        for x in rect.range_width():
-            self.set_architecture(Point(x, rect.top), Wall)
-            self.set_architecture(Point(x, rect.bottom), Wall)
-
-        # Left and right (will hit corners again, whatever)
-        for y in rect.range_height():
-            self.set_architecture(Point(rect.left, y), Wall)
-            self.set_architecture(Point(rect.right, y), Wall)
-
     def maybe_create(self, type_or_thing):
         if isinstance(type_or_thing, Entity):
             return type_or_thing
@@ -77,14 +97,38 @@ class MapCanvas:
         return map
 
 
-def random_rect_in_rect(area, size):
-    """Return a rectangle created by randomly placing the given size within the
-    given area.
+class Room:
+    """A room, which has not yet been drawn.  Performs some light randomization
+    of the room shape.
     """
-    top = random.randint(area.top, area.bottom - size.height + 1)
-    left = random.randint(area.left, area.right - size.width + 1)
+    MINIMUM_SIZE = Size(5, 5)
 
-    return Rectangle(Point(left, top), size)
+    def __init__(self, region):
+        self.region = region
+        self.size = Size(
+            random_normal_range(self.MINIMUM_SIZE.width, region.width),
+            random_normal_range(self.MINIMUM_SIZE.height, region.height),
+        )
+        left = region.left + random.randint(0, region.width - self.size.width)
+        top = region.top + random.randint(0, region.height - self.size.height)
+        self.rect = Rectangle(Point(left, top), self.size)
+
+    def draw_to_canvas(self, canvas):
+        assert self.rect in canvas.rect
+
+        for point in self.rect.iter_points():
+            canvas.set_architecture(point, random.choice([Floor, CutGrass, CutGrass, Grass]))
+
+        # Top and bottom
+        for x in self.rect.range_width():
+            canvas.set_architecture(Point(x, self.rect.top), Wall)
+            canvas.set_architecture(Point(x, self.rect.bottom), Wall)
+
+        # Left and right (will hit corners again, whatever)
+        for y in self.rect.range_height():
+            canvas.set_architecture(Point(self.rect.left, y), Wall)
+            canvas.set_architecture(Point(self.rect.right, y), Wall)
+
 
 
 class Fractor:
@@ -123,9 +167,10 @@ class Fractor:
 
     # Utility methods follow
 
-    def generate_room(self, region, room_size=Size(8, 8)):
-        room_rect = random_rect_in_rect(region, room_size)
-        self.map_canvas.draw_room(room_rect)
+    def generate_room(self, region):
+        # TODO lol not even using room_size
+        room = Room(region)
+        room.draw_to_canvas(self.map_canvas)
 
     def place_player(self):
         assert self.map_canvas.floor_spaces, "can't place player with no open spaces"
@@ -148,7 +193,14 @@ class Fractor:
         self.map_canvas.set_architecture(point, portal)
 
 
+# TODO this is better, but still not great.  rooms need to be guaranteed
+# to not touch each other, for one.  also has some biases towards big rooms
+# still (need a left-leaning distribution for room size?) and it's easy to end
+# up with an obvious grid
+# TODO also lol needs hallways
 class BinaryPartitionFractor(Fractor):
+    # TODO should probably accept a (minimum) room size instead, and derive
+    # minimum partition size from that
     def __init__(self, *args, minimum_size):
         super().__init__(*args)
         self.minimum_size = minimum_size
@@ -162,51 +214,45 @@ class BinaryPartitionFractor(Fractor):
         # TODO this should preserve the tree somehow, so a hallway can be drawn
         # along the edges
         regions = [self.region]
-        final_regions = []
+        # TODO configurable?  with fewer, could draw bigger interesting things in the big spaces
+        wanted = 7
 
-        while regions:
-            nonfinal_regions = []
-            for region in regions:
-                new_regions = self.partition(region)
-                if len(new_regions) > 1:
-                    nonfinal_regions.extend(new_regions)
-                else:
-                    final_regions.extend(new_regions)
+        while regions and len(regions) < wanted:
+            region = regions.pop(0)
 
-            regions = nonfinal_regions
+            new_regions = self.partition(region)
+            regions.extend(new_regions)
 
-        return final_regions
+            regions.sort(key=lambda r: r.size.area, reverse=True)
+
+        return regions
 
     def partition(self, region):
         possible_directions = []
 
-        # TODO this needs a chance to stop before hitting the minimum size --
-        # some sort of ramp-down where larger sizes are much less likely.  a
-        # bit awkward though since just not dividing means we end up with a
-        # room 2x the minimum size.  maybe the partitioning needs tweaking too,
-        # like normal curve or something.
+        # Partition whichever direction has more available space
+        rel_height = region.height / self.minimum_size.height
+        rel_width = region.width / self.minimum_size.width
 
-        if region.height >= self.minimum_size.height * 2:
-            possible_directions.append(self.partition_horizontal)
-        if region.width >= self.minimum_size.width * 2:
-            possible_directions.append(self.partition_vertical)
-
-        if possible_directions:
-            method = random.choice(possible_directions)
-            return method(region)
-        else:
+        if rel_height < 2 and rel_width < 2:
+            # Can't partition at all
             return [region]
+
+        if rel_height > rel_width:
+            return self.partition_horizontal(region)
+        else:
+            return self.partition_vertical(region)
 
     def partition_horizontal(self, region):
         # We're looking for the far edge of the top partition, so subtract 1
         # to allow it on the border of the minimum size
-        top = region.top + self.minimum_size.height - 1
-        bottom = region.bottom - self.minimum_size.height
+        min_height = self.minimum_size.height
+        top = region.top + min_height - 1
+        bottom = region.bottom - min_height
 
-        if top > bottom:
-            return [region]
+        assert top <= bottom
 
-        midpoint = random.randrange(top, bottom + 1)
+        midpoint = random.randint(top, bottom + 1)
 
         return [
             region.replace(bottom=midpoint),
@@ -214,15 +260,14 @@ class BinaryPartitionFractor(Fractor):
         ]
 
     def partition_vertical(self, region):
-        # We're looking for the far edge of the left partition, so subtract 1
-        # to allow it on the border of the minimum size
-        left = region.left + self.minimum_size.width - 1
-        right = region.right - self.minimum_size.width
+        # Exactly the same as above
+        min_width = self.minimum_size.width
+        left = region.left + min_width - 1
+        right = region.right - min_width
 
-        if left > right:
-            return [region]
+        assert left <= right
 
-        midpoint = random.randrange(left, right + 1)
+        midpoint = random.randint(left, right + 1)
 
         return [
             region.replace(right=midpoint),

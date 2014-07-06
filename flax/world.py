@@ -17,8 +17,9 @@ class FloorPlan:
         # to that?
         self.maps = {}
         self.maps['map0'] = PerlinFractor(Size(80, 24)).generate_map(start=True, down='map1')
-        self.maps['map1'] = BinaryPartitionFractor(Size(80, 24), minimum_size=Size(10, 10)).generate_map(up='map0')
-        self.starting_map_name = 'map0'
+        self.maps['map1'] = BinaryPartitionFractor(Size(80, 24), minimum_size=Size(10, 8)).generate_map(start=True, up='map0')
+        # TODO fractors should never place player
+        self.starting_map_name = 'map1'
 
 
 class World:
