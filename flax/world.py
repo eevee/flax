@@ -1,6 +1,7 @@
 from collections import deque
 
-from flax.component import IActor
+from flax.component import IActor, IPhysics
+from flax.entity import Player
 from flax.fractor import BinaryPartitionFractor
 from flax.fractor import PerlinFractor
 from flax.geometry import Size
@@ -9,17 +10,50 @@ from flax.geometry import Size
 class FloorPlan:
     """Layout of the maps."""
     # Will also take care of saving and loading later, maybe?
-    def __init__(self):
+    def __init__(self, player):
+        self.player = player
+
         # I suppose for now we'll just hardcode this, but...
         # TODO how will all this work?  where do the connections between maps
         # live?  do we decide the general structure (e.g. a split-off section
         # of the dungeon with X floors) and then tell the fractors to conform
         # to that?
+        # TODO maybe maps should just know their own names
         self.maps = {}
-        self.maps['map0'] = PerlinFractor(Size(80, 24)).generate_map(start=True, down='map1')
-        self.maps['map1'] = BinaryPartitionFractor(Size(80, 24), minimum_size=Size(10, 8)).generate_map(start=True, up='map0')
-        # TODO fractors should never place player
-        self.starting_map_name = 'map1'
+        self.maps['map0'] = PerlinFractor(Size(80, 24)).generate_map(down='map1')
+        self.maps['map1'] = BinaryPartitionFractor(Size(80, 24), minimum_size=Size(10, 8)).generate_map(up='map0')
+        self.current_map_name = None
+        self.current_map = None
+
+    def change_map(self, new_map_name):
+        # Probably should call world.change_map() instead, which will clear out
+        # some map-specific state.
+        new_map = self.maps[new_map_name]
+        player_position = None
+
+        if self.current_map:
+            self.current_map.remove(self.player)
+
+            dest_portal = new_map.portal_index.get(self.current_map_name)
+            if dest_portal:
+                player_position = new_map.find(dest_portal).position
+
+        if player_position is None:
+            # This shouldn't normally happen, but for the moment, it always
+            # does when starting the game.  TODO should fractor do this?  not
+            # terribly efficient atm  :)
+            import random
+            tiles = list(new_map.tiles.values())
+            random.shuffle(tiles)
+            while True:
+                tile = tiles.pop(0)
+                if not IPhysics(tile.architecture).blocks(self.player):
+                    player_position = tile.position
+                    break
+
+        self.current_map_name = new_map_name
+        self.current_map = new_map
+        self.current_map.place(self.player, player_position)
 
 
 class World:
@@ -28,27 +62,24 @@ class World:
     new maps, inter-map movement, gameplay configuration, and the like.
     """
     def __init__(self):
-        # TODO how to store the maps, to make looking through them a little
-        # saner?
-        self.floor_plan = FloorPlan()
-        self.current_map = self.floor_plan.maps[self.floor_plan.starting_map_name]
+        # There can only be one player object.  We own it.
+        self.player = Player()
 
         self.player_action_queue = deque()
         self.event_queue = deque()
 
+        self.floor_plan = FloorPlan(self.player)
+        self.change_map('map0')  # TODO seems hardcodey to put this here
+
     @property
-    def player(self):
-        return self.current_map.player
+    def current_map(self):
+        return self.floor_plan.current_map
 
     def change_map(self, map_name):
         # TODO refund time?
         self.event_queue.clear()
 
-        player = self.player
-        self.current_map.remove(player)
-        self.current_map = self.floor_plan.maps[map_name]
-        # TODO find matching stairs
-        self.current_map.place(player, (1, 1))
+        self.floor_plan.change_map(map_name)
 
     def push_player_action(self, event):
         self.player_action_queue.append(event)

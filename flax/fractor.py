@@ -145,14 +145,12 @@ class Fractor:
         else:
             self.region = region
 
-    def generate_map(self, start=False, up=None, down=None):
+    def generate_map(self, up=None, down=None):
         """The method you probably want to call.  Does some stuff, then spits
         out a map.
         """
         self.generate()
-
-        if start:
-            self.place_player()
+        self.place_stuff()
 
         if up:
             self.place_portal(StairsUp, up)
@@ -172,12 +170,13 @@ class Fractor:
         room = Room(region)
         room.draw_to_canvas(self.map_canvas)
 
-    def place_player(self):
+    def place_stuff(self):
+        # TODO this probably varies by room style too, but we don't have a huge
+        # variety yet of stuff to generate yet, so.
         assert self.map_canvas.floor_spaces, "can't place player with no open spaces"
-        points = random.sample(list(self.map_canvas.floor_spaces), 3)
-        self.map_canvas.set_creature(points[0], Player)
-        self.map_canvas.set_creature(points[1], Salamango)
-        self.map_canvas.add_item(points[2], Armor)
+        points = random.sample(list(self.map_canvas.floor_spaces), 2)
+        self.map_canvas.set_creature(points[0], Salamango)
+        self.map_canvas.add_item(points[1], Armor)
 
     def place_portal(self, portal_type, destination):
         from flax.component import IPortal

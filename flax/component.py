@@ -179,18 +179,28 @@ class IPortal(IComponent):
 
 @zi.implementer(IPortal)
 class PortalDownstairs(Component):
+    # TODO this obviously doesn't work as well for something intended to be set
+    # by the entity constructor
+    @attribute(IPortal)
+    def destination(self):
+        return None
+
     @handler(Descend)
     def handle_descend(self, event):
-        # TODO self.destination should work here!
-        event.world.change_map(self.entity.component_data[IPortal['destination']])
+        event.world.change_map(self.destination)
 
 
 @zi.implementer(IPortal)
 class PortalUpstairs(Component):
+    # TODO this obviously doesn't work as well for something intended to be set
+    # by the entity constructor
+    @attribute(IPortal)
+    def destination(self):
+        return None
+
     @handler(Ascend)
     def handle_ascend(self, event):
-        # TODO self.destination should work here!
-        event.world.change_map(self.entity.component_data[IPortal['destination']])
+        event.world.change_map(self.destination)
 
 
 # -----------------------------------------------------------------------------

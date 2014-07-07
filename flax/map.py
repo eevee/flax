@@ -1,5 +1,6 @@
 from weakref import WeakKeyDictionary, ref
 
+from flax.component import IPortal
 from flax.geometry import Point
 from flax.entity import Entity, Layer, Player
 
@@ -9,6 +10,7 @@ class Map:
         self.rect = size.to_rect(Point.origin())
 
         self.entity_positions = WeakKeyDictionary()
+        self.portal_index = {}
 
         self.tiles = {
             point: Tile(self, point)
@@ -44,6 +46,10 @@ class Map:
 
         if entity.isa(Player):
             self.player = entity
+        if IPortal in entity.type.components:
+            dest = IPortal(entity).destination
+            assert dest not in self.portal_index
+            self.portal_index[dest] = entity
 
     def find(self, entity):
         assert isinstance(entity, Entity)
@@ -65,6 +71,9 @@ class Map:
 
         if entity.isa(Player):
             del self.player
+        if IPortal in entity.type.components:
+            dest = IPortal(entity).destination
+            del self.portal_index[dest]
 
     def __contains__(self, position):
         return position in self.rect
