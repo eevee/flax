@@ -272,8 +272,9 @@ class PlayerStatusWidget(urwid.Pile):
         self.strength_text = urwid.Text("Health: ???")
 
         super().__init__([
-            urwid.Filler(self.health_text),
-            urwid.Filler(self.strength_text),
+            ('pack', self.health_text),
+            ('pack', self.strength_text),
+            urwid.SolidFill(' '),
         ])
 
         self.update()
@@ -297,16 +298,18 @@ class InventoryItem(urwid.WidgetWrap):
         super().__init__(widget)
 
 
-class InventoryMenu(urwid.ListBox):
+class InventoryMenu(urwid.WidgetWrap):
     signals = ['close']
 
     def __init__(self, player):
         walker = urwid.SimpleListWalker([])
-        super().__init__(walker)
+        self.listbox = urwid.ListBox(walker)
 
         from flax.component import IContainer
         for item in IContainer(player).inventory:
-            self.body.append(InventoryItem(item))
+            self.listbox.body.append(InventoryItem(item))
+
+        super().__init__(urwid.LineBox(self.listbox))
 
     def keypress(self, size, key):
         if key == 'esc':
