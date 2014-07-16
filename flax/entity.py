@@ -37,15 +37,13 @@ class EntityType:
 
         self.components = {}
         for component in components:
-            for iface in zi.implementedBy(component):
-                if iface is IComponent:
-                    continue
-                if iface in self.components:
-                    raise TypeError(
-                        "Got two components for the same interface "
-                        "({!r}): {!r} and {!r}"
-                        .format(iface, self.components[iface], component))
-                self.components[iface] = component
+            iface = component.interface
+            if iface in self.components:
+                raise TypeError(
+                    "Got two components for the same interface "
+                    "({!r}): {!r} and {!r}"
+                    .format(iface, self.components[iface], component))
+            self.components[iface] = component
 
     def __call__(self, *args, **kwargs):
         """Create a new entity of this type.  Implemented so you can pretend
@@ -76,7 +74,7 @@ class Entity:
         # TODO handle keyerror?  or don't?  if not, would be nice to have a
         # better way to ask whether an iface is supported; __contains__?
         component = self.type.components[iface]
-        return component(iface, self)
+        return component.adapt(self)
 
     # TODO this isn't used any more
     def add_modifiers(self, *modifiers):
@@ -108,7 +106,7 @@ class Entity:
 
     def handle_event(self, event):
         for iface, component in self.type.components.items():
-            adapted = component(iface, self)
+            adapted = component.adapt(self)
             adapted.handle_event(event)
 
 

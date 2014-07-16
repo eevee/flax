@@ -52,12 +52,36 @@ def handler(event_class):
 
     return decorator
 
+
+def constructor_attribute(doc):
+    attr = zi.Attribute(doc)
+    attr.setTaggedValue('mode', 'given')
+    return attr
+
+
+def derived_attribute(doc):
+    attr = zi.Attribute(doc)
+    attr.setTaggedValue('mode', 'derived')
+    return attr
+
+
 class IComponent(zi.Interface):
     pass
 
 
+class ComponentInitializer:
+    def __init__(self, component, **kwargs):
+        self.component = component
+        self.kwargs = kwargs
+
+    def populate_entity(self, entity):
+        for key, value in self.kwargs.items():
+            attr = self.component.interface[key]
+            entity.component_data[attr] = value
+
+
 class ComponentMeta(type):
-    def __new__(meta, name, bases, attrs):
+    def __new__(meta, name, bases, attrs, *, iface):
         event_handlers = defaultdict(list)
 
         for key, value in list(attrs.items()):
@@ -71,6 +95,20 @@ class ComponentMeta(type):
         attrs['event_handlers'] = event_handlers
 
         return super().__new__(meta, name, bases, attrs)
+
+    def __init__(cls, name, bases, attrs, *, iface=IComponent):
+        zi.implementer(iface)(cls)
+        cls.interface = iface
+
+    # TODO so far so good, but this doesn't help with creating individual
+    # entities
+    def __call__(cls, **kwargs):
+        return ComponentInitializer(cls, **kwargs)
+
+    def adapt(cls, entity):
+        self = super().__call__(cls)
+        self.__init__(entity)
+        return self
 
 
 class ComponentAttribute:
@@ -111,10 +149,8 @@ def attribute(iface):
     return decorator
 
 
-@zi.implementer(IComponent)
-class Component(metaclass=ComponentMeta):
-    def __init__(self, iface, entity):
-        self.iface = iface
+class Component(metaclass=ComponentMeta, iface=IComponent):
+    def __init__(self, entity):
         self.entity = entity
 
     def handle_event(self, event):
@@ -138,8 +174,7 @@ class IPhysics(IComponent):
         """
 
 
-@zi.implementer(IPhysics)
-class Solid(Component):
+class Solid(Component, iface=IPhysics):
     def blocks(self, actor):
         # TODO i have /zero/ idea how passwall works here
         return True
@@ -160,8 +195,7 @@ class Solid(Component):
         event.cancel()
 
 
-@zi.implementer(IPhysics)
-class Empty(Component):
+class Empty(Component, iface=IPhysics):
     def blocks(self, actor):
         return False
 
@@ -174,11 +208,10 @@ class Empty(Component):
 # Map portal
 
 class IPortal(IComponent):
-    destination = zi.Attribute("""Name of the destination map.""")
+    destination = constructor_attribute("Name of the destination map.")
 
 
-@zi.implementer(IPortal)
-class PortalDownstairs(Component):
+class PortalDownstairs(Component, iface=IPortal):
     # TODO this obviously doesn't work as well for something intended to be set
     # by the entity constructor
     @attribute(IPortal)
@@ -190,8 +223,7 @@ class PortalDownstairs(Component):
         event.world.change_map(self.destination)
 
 
-@zi.implementer(IPortal)
-class PortalUpstairs(Component):
+class PortalUpstairs(Component, iface=IPortal):
     # TODO this obviously doesn't work as well for something intended to be set
     # by the entity constructor
     @attribute(IPortal)
@@ -210,8 +242,7 @@ class IContainer(IComponent):
     inventory = zi.Attribute("""Items contained by this container.""")
 
 
-@zi.implementer(IContainer)
-class Container(Component):
+class Container(Component, iface=IContainer):
     @attribute(IContainer)
     def inventory(self):
         return []
@@ -226,11 +257,19 @@ class ICombatant(IComponent):
     strength = zi.Attribute("""Generic placeholder stat while I figure stuff out.""")
 
 
-@zi.implementer(ICombatant)
-class Combatant(Component):
+class Combatant(Component, iface=ICombatant):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
+    # TODO need several things to happen with attributes here
+    # 1. need to be able to pass them to Entity constructor
+    # 2. not all attributes have or want a default
+    # 3. some attributes are computed based on others
+    # 4. some attributes want to be randomized...  but maybe this is just
+    # whatever
+    # how does the distinction between default/given/derived attributes
+    # interact with polymorph?  surely it can't work unless the given
+    # attributes are the same in every implementation?
     @attribute(ICombatant)
     def health(self):
         return 10
@@ -277,8 +316,7 @@ class IActor(IComponent):
         """
 
 
-@zi.implementer(IActor)
-class GenericAI(Component):
+class GenericAI(Component, iface=IActor):
     def act(self, world):
         from flax.geometry import Direction
         from flax.event import Walk
@@ -295,8 +333,7 @@ class GenericAI(Component):
         world.queue_event(Walk(self.entity, random.choice(list(Direction))))
 
 
-@zi.implementer(IActor)
-class PlayerIntelligence(Component):
+class PlayerIntelligence(Component, iface=IActor):
     def act(self, world):
         if world.player_action_queue:
             world.queue_immediate_event(world.player_action_queue.popleft())
@@ -309,8 +346,7 @@ class IPortable(IComponent):
     """Entity can be picked up and placed in containers."""
 
 
-@zi.implementer(IPortable)
-class Portable(Component):
+class Portable(Component, iface=IPortable):
     # TODO maybe "actor" could just be an event target, and we'd need fewer
     # duplicate events for the source vs the target?
     @handler(PickUp)
@@ -329,8 +365,7 @@ class IEquipment(IComponent):
     pass
 
 
-@zi.implementer(IEquipment)
-class Equipment(Component):
+class Equipment(Component, iface=IEquipment):
     @handler(Equip)
     def handle_equip(self, event):
         print("you put on the armor")
