@@ -81,7 +81,7 @@ class ComponentInitializer:
 
 
 class ComponentMeta(type):
-    def __new__(meta, name, bases, attrs, *, iface):
+    def __new__(meta, name, bases, attrs, *, interface):
         event_handlers = defaultdict(list)
 
         for key, value in list(attrs.items()):
@@ -96,37 +96,45 @@ class ComponentMeta(type):
 
         return super().__new__(meta, name, bases, attrs)
 
-    def __init__(cls, name, bases, attrs, *, iface=IComponent):
-        zi.implementer(iface)(cls)
-        cls.interface = iface
+    def __init__(cls, name, bases, attrs, *, interface):
+        zi.implementer(interface)(cls)
+        cls.interface = interface
+
+        # Slap on an attribute descriptor for every attribute in the interface
+        for key in interface:
+            attr = interface[key]
+            if not isinstance(attr, zi.Attribute):
+                continue
+
+            mode = attr.queryTaggedValue('mode')
+            if mode != 'derived'   and not hasattr(cls, key):
+                setattr(cls, key, ComponentAttribute(attr))
+
+
 
     # TODO so far so good, but this doesn't help with creating individual
     # entities
     def __call__(cls, **kwargs):
         return ComponentInitializer(cls, **kwargs)
 
+    def init_entity(cls, entity):
+        self = cls.adapt(entity)
+        self.__init__()
+
     def adapt(cls, entity):
-        self = super().__call__(cls)
-        self.__init__(entity)
-        return self
+        return cls.__new__(cls, entity)
 
 
 class ComponentAttribute:
-    def __init__(desc, zope_attribute, initializer):
+    def __init__(desc, zope_attribute):
         desc.zope_attribute = zope_attribute
-        desc.initializer = initializer
 
     def __get__(desc, self, cls):
         if self is None:
             return desc
 
-        # TODO how does this get set initially, though...
         attr = desc.zope_attribute
         data = self.entity.component_data
-
-        if attr not in data:
-            data[attr] = desc.initializer(self)
-
         value = data[attr]
 
         # TODO well this is a bit cumbersome
@@ -143,15 +151,11 @@ class ComponentAttribute:
         self.entity.component_data[desc.zope_attribute] = value
 
 
-def attribute(iface):
-    def decorator(f):
-        return ComponentAttribute(iface[f.__name__], f)
-    return decorator
-
-
-class Component(metaclass=ComponentMeta, iface=IComponent):
-    def __init__(self, entity):
+class Component(metaclass=ComponentMeta, interface=IComponent):
+    def __new__(cls, entity):
+        self = super().__new__(cls)
         self.entity = entity
+        return self
 
     def handle_event(self, event):
         # TODO what order should these be called in?
@@ -174,7 +178,7 @@ class IPhysics(IComponent):
         """
 
 
-class Solid(Component, iface=IPhysics):
+class Solid(Component, interface=IPhysics):
     def blocks(self, actor):
         # TODO i have /zero/ idea how passwall works here
         return True
@@ -195,7 +199,7 @@ class Solid(Component, iface=IPhysics):
         event.cancel()
 
 
-class Empty(Component, iface=IPhysics):
+class Empty(Component, interface=IPhysics):
     def blocks(self, actor):
         return False
 
@@ -211,24 +215,22 @@ class IPortal(IComponent):
     destination = constructor_attribute("Name of the destination map.")
 
 
-class PortalDownstairs(Component, iface=IPortal):
+class PortalDownstairs(Component, interface=IPortal):
     # TODO this obviously doesn't work as well for something intended to be set
     # by the entity constructor
-    @attribute(IPortal)
-    def destination(self):
-        return None
+    def __init__(self):
+        self.destination = None
 
     @handler(Descend)
     def handle_descend(self, event):
         event.world.change_map(self.destination)
 
 
-class PortalUpstairs(Component, iface=IPortal):
+class PortalUpstairs(Component, interface=IPortal):
     # TODO this obviously doesn't work as well for something intended to be set
     # by the entity constructor
-    @attribute(IPortal)
-    def destination(self):
-        return None
+    def __init__(self):
+        self.destination = None
 
     @handler(Ascend)
     def handle_ascend(self, event):
@@ -242,10 +244,9 @@ class IContainer(IComponent):
     inventory = zi.Attribute("""Items contained by this container.""")
 
 
-class Container(Component, iface=IContainer):
-    @attribute(IContainer)
-    def inventory(self):
-        return []
+class Container(Component, interface=IContainer):
+    def __init__(self):
+        self.inventory = []
 
 
 # -----------------------------------------------------------------------------
@@ -257,26 +258,18 @@ class ICombatant(IComponent):
     strength = zi.Attribute("""Generic placeholder stat while I figure stuff out.""")
 
 
-class Combatant(Component, iface=ICombatant):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+class Combatant(Component, interface=ICombatant):
+    def __init__(self):
+        self.health = 10
+        self.strength = 3
 
     # TODO need several things to happen with attributes here
     # 1. need to be able to pass them to Entity constructor
     # 2. not all attributes have or want a default
     # 3. some attributes are computed based on others
-    # 4. some attributes want to be randomized...  but maybe this is just
-    # whatever
-    # how does the distinction between default/given/derived attributes
-    # interact with polymorph?  surely it can't work unless the given
-    # attributes are the same in every implementation?
-    @attribute(ICombatant)
-    def health(self):
-        return 10
-
-    @attribute(ICombatant)
-    def strength(self):
-        return 3
+    # 4. some attributes want to be randomized in a range, i.e. need some sort
+    # of constructor arguments that are used to compute an attribute but not
+    # stored anywhere
 
     @handler(Damage)
     def handle_damage(self, event):
@@ -316,7 +309,7 @@ class IActor(IComponent):
         """
 
 
-class GenericAI(Component, iface=IActor):
+class GenericAI(Component, interface=IActor):
     def act(self, world):
         from flax.geometry import Direction
         from flax.event import Walk
@@ -333,7 +326,7 @@ class GenericAI(Component, iface=IActor):
         world.queue_event(Walk(self.entity, random.choice(list(Direction))))
 
 
-class PlayerIntelligence(Component, iface=IActor):
+class PlayerIntelligence(Component, interface=IActor):
     def act(self, world):
         if world.player_action_queue:
             world.queue_immediate_event(world.player_action_queue.popleft())
@@ -346,7 +339,7 @@ class IPortable(IComponent):
     """Entity can be picked up and placed in containers."""
 
 
-class Portable(Component, iface=IPortable):
+class Portable(Component, interface=IPortable):
     # TODO maybe "actor" could just be an event target, and we'd need fewer
     # duplicate events for the source vs the target?
     @handler(PickUp)
@@ -365,7 +358,7 @@ class IEquipment(IComponent):
     pass
 
 
-class Equipment(Component, iface=IEquipment):
+class Equipment(Component, interface=IEquipment):
     @handler(Equip)
     def handle_equip(self, event):
         print("you put on the armor")

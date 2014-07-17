@@ -62,6 +62,9 @@ class Entity:
         self.relations = defaultdict(set)
         self.component_data = {}
 
+        for component in self.type.components.values():
+            component.init_entity(self)
+
     def __repr__(self):
         return "<{}: {}>".format(
             type(self).__qualname__,
