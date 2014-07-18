@@ -53,12 +53,14 @@ def handler(event_class):
     return decorator
 
 
-def constructor_attribute(doc):
+def static_attribute(doc):
     attr = zi.Attribute(doc)
-    attr.setTaggedValue('mode', 'given')
+    attr.setTaggedValue('mode', 'static')
     return attr
 
 
+# TODO none of these yet, but we should assert that they /are/ given as
+# properties of the class
 def derived_attribute(doc):
     attr = zi.Attribute(doc)
     attr.setTaggedValue('mode', 'derived')
@@ -74,14 +76,19 @@ class ComponentInitializer:
         self.component = component
         self.kwargs = kwargs
 
+        self.interface = component.interface
+
     def populate_entity(self, entity):
         for key, value in self.kwargs.items():
             attr = self.component.interface[key]
             entity.component_data[attr] = value
 
+    def init_entity(self, entity):
+        self.component.init_entity(entity, **self.kwargs)
+
 
 class ComponentMeta(type):
-    def __new__(meta, name, bases, attrs, *, interface):
+    def __new__(meta, name, bases, attrs, *, interface=None):
         event_handlers = defaultdict(list)
 
         for key, value in list(attrs.items()):
@@ -96,7 +103,11 @@ class ComponentMeta(type):
 
         return super().__new__(meta, name, bases, attrs)
 
-    def __init__(cls, name, bases, attrs, *, interface):
+    def __init__(cls, name, bases, attrs, *, interface=None):
+        if interface is None:
+            # Try to fetch it from a parent class
+            interface = cls.interface
+
         zi.implementer(interface)(cls)
         cls.interface = interface
 
@@ -107,19 +118,22 @@ class ComponentMeta(type):
                 continue
 
             mode = attr.queryTaggedValue('mode')
-            if mode != 'derived'   and not hasattr(cls, key):
-                setattr(cls, key, ComponentAttribute(attr))
+            if mode == 'static':
+                if key in cls.__dict__:
+                    raise TypeError(
+                        "Implementation {!r} "
+                        "defines static attribute {!r}"
+                        .format(cls, key)
+                    )
+                else:
+                    setattr(cls, key, ComponentAttribute(attr))
 
-
-
-    # TODO so far so good, but this doesn't help with creating individual
-    # entities
     def __call__(cls, **kwargs):
         return ComponentInitializer(cls, **kwargs)
 
-    def init_entity(cls, entity):
+    def init_entity(cls, entity, **kwargs):
         self = cls.adapt(entity)
-        self.__init__()
+        self.__init__(**kwargs)
 
     def adapt(cls, entity):
         return cls.__new__(cls, entity)
@@ -212,26 +226,23 @@ class Empty(Component, interface=IPhysics):
 # Map portal
 
 class IPortal(IComponent):
-    destination = constructor_attribute("Name of the destination map.")
+    destination = static_attribute("Name of the destination map.")
 
 
-class PortalDownstairs(Component, interface=IPortal):
+class Portal(Component, interface=IPortal):
     # TODO this obviously doesn't work as well for something intended to be set
     # by the entity constructor
-    def __init__(self):
-        self.destination = None
+    def __init__(self, *, destination):
+        self.destination = destination
 
+
+class PortalDownstairs(Portal):
     @handler(Descend)
     def handle_descend(self, event):
         event.world.change_map(self.destination)
 
 
-class PortalUpstairs(Component, interface=IPortal):
-    # TODO this obviously doesn't work as well for something intended to be set
-    # by the entity constructor
-    def __init__(self):
-        self.destination = None
-
+class PortalUpstairs(Portal):
     @handler(Ascend)
     def handle_ascend(self, event):
         event.world.change_map(self.destination)
@@ -241,7 +252,7 @@ class PortalUpstairs(Component, interface=IPortal):
 # Containment
 
 class IContainer(IComponent):
-    inventory = zi.Attribute("""Items contained by this container.""")
+    inventory = static_attribute("Items contained by this container.")
 
 
 class Container(Component, interface=IContainer):
@@ -254,8 +265,8 @@ class Container(Component, interface=IContainer):
 
 class ICombatant(IComponent):
     """Implements an entity's ability to fight and take damage."""
-    health = zi.Attribute("""Entity's health meter.""")
-    strength = zi.Attribute("""Generic placeholder stat while I figure stuff out.""")
+    health = static_attribute("Entity's health meter.")
+    strength = static_attribute("Generic placeholder stat while I figure stuff out.")
 
 
 class Combatant(Component, interface=ICombatant):

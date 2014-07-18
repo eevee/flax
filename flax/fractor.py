@@ -179,12 +179,8 @@ class Fractor:
         self.map_canvas.add_item(points[1], Armor)
 
     def place_portal(self, portal_type, destination):
-        from flax.component import IPortal
-
-        # TODO should be able to maybe pass in attribute definitions directly?
-        portal = portal_type()
-        portal.component_data[IPortal['destination']] = destination
-
+        from flax.component import Portal
+        portal = portal_type(Portal(destination=destination))
 
         # TODO not guaranteed
         assert self.map_canvas.floor_spaces, "can't place portal with no open spaces"

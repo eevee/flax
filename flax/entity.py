@@ -56,14 +56,52 @@ class Entity:
     """An entity in the game world.  Might be anything from a chunk of the
     floor to a segment of a giant worm.
     """
-    def __init__(self, type):
+    def __init__(self, type, *initializers):
+        # TODO probably just allow kwargs when not ambiguous
         self.type = type
         self.modifiers = []
         self.relations = defaultdict(set)
         self.component_data = {}
 
-        for component in self.type.components.values():
-            component.init_entity(self)
+        # TODO no warning about duplicate initializers
+        # TODO should enforce that the initializer is a superclass of the
+        # type's actual component
+        interface_initializers = {}
+        for initializer in initializers:
+            if initializer.interface in interface_initializers:
+                raise TypeError(
+                    "Constructor for {!r} got two initializers for the same "
+                    "interface {!r}: {!r} and {!r}".format(
+                        self.type,
+                        initializer.interface,
+                        initializer.component,
+                        interface_initializers[initializer.interface].component,
+                    )
+                )
+
+            interface_initializers[initializer.interface] = initializer
+
+        for interface, component in self.type.components.items():
+            if interface in interface_initializers:
+                initializer = interface_initializers.pop(interface)
+                if not issubclass(component, initializer.component):
+                    raise TypeError(
+                        "Constructor for {!r} got an initializer for {!r}, "
+                        "which is not a superclass of the actual component "
+                        "{!r}".format(
+                            self.type,
+                            initializer.component,
+                            component,
+                        )
+                    )
+            else:
+                initializer = component
+
+            initializer.init_entity(self)
+
+        if interface_initializers:
+            # TODO run them, or ignore them?
+            pass
 
     def __repr__(self):
         return "<{}: {}>".format(
