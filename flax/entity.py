@@ -45,6 +45,9 @@ class EntityType:
                     .format(iface, self.components[iface], component))
             self.components[iface] = component
 
+    def __repr__(self):
+        return "<{}: {}>".format(type(self).__qualname__, self.name)
+
     def __call__(self, *args, **kwargs):
         """Create a new entity of this type.  Implemented so you can pretend
         these are classes.
@@ -63,27 +66,27 @@ class Entity:
         self.relations = defaultdict(set)
         self.component_data = {}
 
-        # TODO no warning about duplicate initializers
-        # TODO should enforce that the initializer is a superclass of the
-        # type's actual component
-        interface_initializers = {}
+        # Index the initializers by interface
+        initializer_map = {}
         for initializer in initializers:
-            if initializer.interface in interface_initializers:
+            if initializer.interface in initializer_map:
                 raise TypeError(
                     "Constructor for {!r} got two initializers for the same "
                     "interface {!r}: {!r} and {!r}".format(
                         self.type,
                         initializer.interface,
                         initializer.component,
-                        interface_initializers[initializer.interface].component,
+                        initializer_map[initializer.interface].component,
                     )
                 )
 
-            interface_initializers[initializer.interface] = initializer
+            initializer_map[initializer.interface] = initializer
 
+        # Call each component as an initializer, allowing the passed-in ones as
+        # overrides
         for interface, component in self.type.components.items():
-            if interface in interface_initializers:
-                initializer = interface_initializers.pop(interface)
+            if interface in initializer_map:
+                initializer = initializer_map.pop(interface)
                 if not issubclass(component, initializer.component):
                     raise TypeError(
                         "Constructor for {!r} got an initializer for {!r}, "
@@ -97,9 +100,17 @@ class Entity:
             else:
                 initializer = component
 
-            initializer.init_entity(self)
+            try:
+                initializer.init_entity(self)
+            except Exception:
+                # Reraise for context; Python preserves the original
+                raise TypeError(
+                    "Constructor for {!r} failed to initialize "
+                    "{!r} component {!r}"
+                    .format(self.type, interface, initializer)
+                )
 
-        if interface_initializers:
+        if initializer_map:
             # TODO run them, or ignore them?
             pass
 

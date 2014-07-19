@@ -1,3 +1,14 @@
+"""Component infrastructure and definitions.
+
+Game world objects are called "entities", and are broken into parts that each
+implement some interface (and respond to some events).  This allows different
+types of entities to share only some of their behavior, without making an
+unholy mess of mixins and inheritance.
+
+Each part is called a "component", which is what's defined here.  See the
+`Component` base class for an explanation of how they work, or just read over
+some of the component classes to get a feel for what's going on.
+"""
 from collections import defaultdict
 
 import zope.interface as zi
@@ -10,6 +21,12 @@ from flax.event import Unequip
 
 from flax.relation import Wears
 
+
+###############################################################################
+# Crazy plumbing begins here!
+
+# -----------------------------------------------------------------------------
+# Event handling
 
 class Handler:
     @classmethod
@@ -53,6 +70,12 @@ def handler(event_class):
     return decorator
 
 
+# -----------------------------------------------------------------------------
+# Component definitions
+
+# TODO distinguish between those that should only be altered with modifiers
+# (like stats), and those that are expected to change (like /current/ health
+# and inventory)?
 def static_attribute(doc):
     attr = zi.Attribute(doc)
     attr.setTaggedValue('mode', 'static')
@@ -67,21 +90,35 @@ def derived_attribute(doc):
     return attr
 
 
-class IComponent(zi.Interface):
-    pass
+class IComponentFactory(zi.Interface):
+    """An object that produces components.  Usually these are component
+    classes, but sometimes they're wrapped in a `ComponentInitializer`.
+    """
+    interface = zi.Attribute("The interface this component implements.")
+
+    def init_entity(entity):
+        """Run the component's `__init__` on the given entity."""
+
+    def adapt(entity):
+        """Create a component that wraps the given entity.
+
+        This is the actual component constructor, since calling is used for
+        something else.
+        """
 
 
+@zi.implementer(IComponentFactory)
 class ComponentInitializer:
+    """What you get when you call a component class.  Used as a deferred init
+    mechanism.
+    """
     def __init__(self, component, **kwargs):
         self.component = component
         self.kwargs = kwargs
 
-        self.interface = component.interface
-
-    def populate_entity(self, entity):
-        for key, value in self.kwargs.items():
-            attr = self.component.interface[key]
-            entity.component_data[attr] = value
+    @property
+    def interface(self):
+        return self.component.interface
 
     def init_entity(self, entity):
         self.component.init_entity(entity, **self.kwargs)
@@ -90,8 +127,18 @@ class ComponentInitializer:
         return self.component.adapt(entity)
 
 
+@zi.implementer(IComponentFactory)
 class ComponentMeta(type):
+    """Metaclass for components.  Implements the slightly weird bits, like the
+    ruination of object creation.  See `Component` for most of it.
+
+    Note that calling a component class does NOT produce component objects --
+    it produces objects used for initializing entities later.  Component
+    objects are created with `adapt`.
+    """
     def __new__(meta, name, bases, attrs, *, interface=None):
+        # Find and extract event handlers before creating the class, so they
+        # never exist in the class dict
         event_handlers = defaultdict(list)
 
         for key, value in list(attrs.items()):
@@ -114,7 +161,9 @@ class ComponentMeta(type):
         zi.implementer(interface)(cls)
         cls.interface = interface
 
-        # Slap on an attribute descriptor for every attribute in the interface
+        # Slap on an attribute descriptor for every static attribute in the
+        # interface.  (Derived attributes promise that they're computed by the
+        # class via @property or some other mechanism.)
         for key in interface:
             attr = interface[key]
             if not isinstance(attr, zi.Attribute):
@@ -132,13 +181,21 @@ class ComponentMeta(type):
                     setattr(cls, key, ComponentAttribute(attr))
 
     def __call__(cls, **kwargs):
+        """Override object construction.  We don't want to make a component
+        object; we want to make something that can be used to initialize an
+        entity later.  That something is a `ComponentInitializer`.
+        """
         return ComponentInitializer(cls, **kwargs)
 
     def init_entity(cls, entity, **kwargs):
+        """Initialize an entity.  Calls the class's ``__init__`` method."""
         self = cls.adapt(entity)
         self.__init__(**kwargs)
 
     def adapt(cls, entity):
+        """The actual constructor.  Creates a new component that wraps the
+        given entity.  Does not call ``__init__``.
+        """
         return cls.__new__(cls, entity)
 
 
@@ -168,8 +225,78 @@ class ComponentAttribute:
         self.entity.component_data[desc.zope_attribute] = value
 
 
+class IComponent(zi.Interface):
+    """Dummy base class for all component interfaces.
+
+    A component interface specifies some small set of data and behavior that an
+    entity might like to have.  For example, there's an `IActor` interface that
+    has a method, ``act``, for deciding what an entity might want to do.  There
+    are two basic implementations of this interface: one for monsters where the
+    ``act`` method implements an AI, and one for the player where the ``act``
+    method merely returns an action based on player input.
+
+    By breaking functionality into discrete components, different entity types
+    can share some behavior (such as collision detection) without having to
+    share all of it (such as AI).
+
+    Component interfaces also specify what data may be stored on the entity.
+    Place a `static_attribute` in your interface's class body, and your
+    components will be able to read to and write from an attribute of that
+    name.  You don't have to worry about name collisions between different
+    interfaces, either.
+
+    An entity type can only have at most one component per interface at a time.
+
+    Interfaces are also used to access components.  If you have an entity, and
+    you want its implementation of ``IFoo``, calling ``IFoo(entity)`` will
+    produce an appropriate component object.
+    """
+
+
 class Component(metaclass=ComponentMeta, interface=IComponent):
+    """Base class for all components.  Take note: some unorthodox things are
+    happening here.
+
+    A component class must implement exactly one interface, specified by the
+    ``interface`` kwarg in the class statement.  (The interface is inherited by
+    subclasses.)
+
+    A component object acts like a "view" of an entity, able to access only the
+    data specified in its interface (via `static_attribute`).  That is, within
+    a component method, ``self.prop`` will read from and write to a value
+    stored within the underlying entity.  The entity itself is also available,
+    as ``self.entity``.
+
+    Components aren't created the traditional way.  Instead, they're built to
+    act like part of an entity as transparently as possible.  Consider:
+
+        class ICombatant(IComponent):
+            strength = static_attribute("Raw power")
+
+        class Combatant(Component, interface=ICombatant):
+            def __init__(self, *, strength):
+                self.strength = strength
+
+        newt = EntityType(Combatant(strength=3))
+        mind_flayer = EntityType(Combatant(strength=100))
+
+    The ``__init__`` method will never actually be called by this code.  It's
+    only called when a ``newt`` or ``mind_flayer`` entity is created, to
+    initialize the combat part of that entity.  Creating an entity thus
+    triggers the ``__init__`` for each of its components, as though the entity
+    were all of those components simultaneously.
+
+    Components often respond to events as well, using methods decorated with
+    ``@handler``.  Such methods only exist as event handlers, and can't be
+    called directly.
+    """
+
+    entity = None
+    """The entity being wrapped.  Mostly useful for constructing events."""
+
     def __new__(cls, entity):
+        # This is the "real" constructor.  It has to use __new__, since
+        # __init__ is used for other nefarious purposes.
         self = super().__new__(cls)
         self.entity = entity
         return self
@@ -276,7 +403,6 @@ class Combatant(Component, interface=ICombatant):
     def __init__(self, *, health, strength):
         self.health = health
         self.strength = strength
-        print("inited combatant", self.entity, self.entity.component_data)
 
     # TODO need several things to happen with attributes here
     # 1. need to be able to pass them to Entity constructor
