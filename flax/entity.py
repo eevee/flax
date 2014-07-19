@@ -29,11 +29,10 @@ class EntityType:
     Consists primarily of some number of components, each implementing a
     different interface.
     """
-    def __init__(self, *components, layer, name, tmp_rendering, modifiers=()):
+    def __init__(self, *components, layer, name, tmp_rendering):
         self.layer = layer
         self.name = name
         self.tmp_rendering = tmp_rendering
-        self.modifiers = modifiers
 
         self.components = {}
         for component in components:
@@ -62,7 +61,6 @@ class Entity:
     def __init__(self, type, *initializers):
         # TODO probably just allow kwargs when not ambiguous
         self.type = type
-        self.modifiers = []
         self.relations = defaultdict(set)
         self.component_data = {}
 
@@ -84,6 +82,8 @@ class Entity:
 
         # Call each component as an initializer, allowing the passed-in ones as
         # overrides
+        # TODO one obvious downside to this: you can't have an entity's
+        # initializer only /partly/ override a type's
         for interface, component in self.type.components.items():
             if interface in initializer_map:
                 initializer = initializer_map.pop(interface)
@@ -128,7 +128,7 @@ class Entity:
         component = self.type.components[iface]
         return component.adapt(self)
 
-    # TODO this isn't used any more
+    # TODO this isn't used any more but i'm keeping it for the TODOs
     def add_modifiers(self, *modifiers):
         # Temporarily inject another source's modifiers onto this thing.
         # TODO: these should know their source and why: (Armor, equipment)
@@ -251,8 +251,7 @@ class Modifier:
 
 
 Armor = Item(
-    Equipment,
+    Equipment(modifiers=[Modifier(ICombatant['strength'], add=3)]),
     name='armor',
     tmp_rendering=('[', 'default'),
-    modifiers=[Modifier(ICombatant['strength'], add=3)],
 )

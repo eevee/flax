@@ -216,6 +216,11 @@ class ComponentAttribute:
             for relation in relations:
                 if self.entity is relation.to_entity:
                     continue
+                # TODO i just completely broke everything; make this work
+                # again please.  i think i want stronger directions, and making
+                # the removal work more automatically, and an association
+                # between a relation and a component so we know where to find
+                # the modifiers here
                 for mod in relation.to_entity.type.modifiers:
                     value = mod.modify(attr, value)
 
@@ -496,10 +501,13 @@ class Portable(Component, interface=IPortable):
 # Equipment
 
 class IEquipment(IComponent):
-    pass
+    modifiers = static_attribute("Stat modifiers granted by this equipment.")
 
 
 class Equipment(Component, interface=IEquipment):
+    def __init__(self, *, modifiers=None):
+        self.modifiers = modifiers or ()
+
     @handler(Equip)
     def handle_equip(self, event):
         print("you put on the armor")
@@ -510,6 +518,7 @@ class Equipment(Component, interface=IEquipment):
         print("you take off the armor")
         for relation in list(self.entity.relations[Wears]):
             # TODO again this has the problem of direction, ugh
+            # TODO lol you idiot this removes EVERYTHING
             relation.destroy()
 
     #@handler(Damage, on=wearer)
