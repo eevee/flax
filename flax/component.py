@@ -86,6 +86,9 @@ class ComponentInitializer:
     def init_entity(self, entity):
         self.component.init_entity(entity, **self.kwargs)
 
+    def adapt(self, entity):
+        return self.component.adapt(entity)
+
 
 class ComponentMeta(type):
     def __new__(meta, name, bases, attrs, *, interface=None):
@@ -270,9 +273,10 @@ class ICombatant(IComponent):
 
 
 class Combatant(Component, interface=ICombatant):
-    def __init__(self):
-        self.health = 10
-        self.strength = 3
+    def __init__(self, *, health, strength):
+        self.health = health
+        self.strength = strength
+        print("inited combatant", self.entity, self.entity.component_data)
 
     # TODO need several things to happen with attributes here
     # 1. need to be able to pass them to Entity constructor
@@ -293,8 +297,8 @@ class Combatant(Component, interface=ICombatant):
     def handle_attack(self, event):
         print("{0} hits {1}".format(event.actor.type.name, self.entity.type.name))
 
-        # TODO what's the amount
-        event.world.queue_immediate_event(Damage(self.entity, 5))
+        opponent = ICombatant(event.actor)
+        event.world.queue_immediate_event(Damage(self.entity, opponent.strength))
 
     @handler(Die)
     def handle_death(self, event):

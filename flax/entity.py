@@ -203,9 +203,17 @@ Dirt = Architecture(
 # -----------------------------------------------------------------------------
 # Creatures
 
-Creature = partial(EntityType, Solid, Combatant, Container, layer=Layer.creature)
-Player = Creature(PlayerIntelligence, name='you', tmp_rendering=('☻', 'player'))
-Salamango = Creature(GenericAI, name='salamango', tmp_rendering=(':', 'salamango'))
+Creature = partial(EntityType, Solid, Container, layer=Layer.creature)
+Player = Creature(
+    Combatant(strength=3, health=10),
+    PlayerIntelligence,
+    name='you',
+    tmp_rendering=('☻', 'player'))
+Salamango = Creature(
+    Combatant(strength=1, health=5),
+    GenericAI,
+    name='salamango',
+    tmp_rendering=(':', 'salamango'))
 
 
 # -----------------------------------------------------------------------------
