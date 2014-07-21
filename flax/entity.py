@@ -61,8 +61,15 @@ class Entity:
     def __init__(self, type, *initializers):
         # TODO probably just allow kwargs when not ambiguous
         self.type = type
-        self.relations = defaultdict(set)
         self.component_data = {}
+
+        # TODO these don't allow two objects to be related in more than one
+        # way.  probably want to keep the triples and indexes of them
+        # separately?  maybe want a relationship-blob object
+        # TODO these names are terribly confusing and i really need a way to
+        # make english grammar help me out here
+        self.relates_to = defaultdict(set)
+        self.related_to = defaultdict(set)
 
         # Index the initializers by interface
         initializer_map = {}
@@ -132,9 +139,6 @@ class Entity:
     def add_modifiers(self, *modifiers):
         # Temporarily inject another source's modifiers onto this thing.
         # TODO: these should know their source and why: (Armor, equipment)
-        # TODO: i would prefer if these disappeared on their own, somehow,
-        # rather than relying on an event.  but probably the event should be
-        # reliable anyway.
         self.modifiers.extend(modifiers)
         # TODO: fire events when stats change?  (is that how the UI should be
         # updated?)

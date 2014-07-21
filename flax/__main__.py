@@ -230,7 +230,6 @@ class CellWidget(urwid.Widget):
             # important later
             from flax.component import IContainer
             from flax.entity import Armor
-            from flax.relation import Wears
             for item in IContainer(self.world.player).inventory:
                 if item.type is Armor:
                     break
@@ -240,8 +239,8 @@ class CellWidget(urwid.Widget):
         elif key == 'r':
             # TODO menu prompt plz; identifying items is gonna be pretty
             # important later
-            from flax.relation import Wears
-            rels = self.world.player.relations[Wears]
+            from flax.relation import Wearing
+            rels = self.world.player.relates_to[Wearing]
             if rels:
                 rel = next(iter(rels))
                 event = Unequip(self.world.player, rel.to_entity)

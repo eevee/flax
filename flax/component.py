@@ -19,7 +19,9 @@ from flax.event import Ascend, Descend, Walk
 from flax.event import Equip
 from flax.event import Unequip
 
-from flax.relation import Wears
+from flax.relation import RelationSubject
+from flax.relation import RelationObject
+from flax.relation import Wearing
 
 
 ###############################################################################
@@ -211,22 +213,19 @@ class ComponentAttribute:
         data = self.entity.component_data
         value = data[attr]
 
-        # TODO well this is a bit cumbersome
-        for reltype, relations in self.entity.relations.items():
-            for relation in relations:
-                if self.entity is relation.to_entity:
-                    continue
-                # TODO i just completely broke everything; make this work
-                # again please.  i think i want stronger directions, and making
-                # the removal work more automatically, and an association
-                # between a relation and a component so we know where to find
-                # the modifiers here
-                for mod in relation.to_entity.type.modifiers:
+        # TODO this doesn't seem right really.  i think modifiers should really
+        # be tracked separately, and removed by the relation destructor
+        for relation_set in self.entity.relates_to.values():
+            for relation in relation_set:
+                # TODO lol yeah this definitely won't work
+                for mod in IEquipment(relation.to_entity).modifiers:
                     value = mod.modify(attr, value)
 
         return value
 
     def __set__(desc, self, value):
+        # TODO seems like this doesn't make sense for something subject to
+        # modifiers?
         self.entity.component_data[desc.zope_attribute] = value
 
 
@@ -500,26 +499,58 @@ class Portable(Component, interface=IPortable):
 # -----------------------------------------------------------------------------
 # Equipment
 
+class IBodied(IComponent):
+    wearing = derived_attribute("")
+
+class Bodied(Component, interface=IBodied):
+    wearing = RelationSubject(Wearing)
+
+
+
 class IEquipment(IComponent):
+    #worn_by?
     modifiers = static_attribute("Stat modifiers granted by this equipment.")
 
 
 class Equipment(Component, interface=IEquipment):
+    worn_by = RelationObject(Wearing)
+
     def __init__(self, *, modifiers=None):
         self.modifiers = modifiers or ()
 
     @handler(Equip)
     def handle_equip(self, event):
+        # TODO recurring problems with events:
+        # - where does this checking live?  if something else interfered with
+        #   Equip, presumably it would assume that the Equip is legal in the
+        #   first place.  do i want a separate @checker step like inform7 has,
+        #   that lets the ultimate target validate whether the event could
+        #   possibly succeed in the first place?  (would be helpful for AI,
+        #   too, and a generalization of the `blocks` method.)
+        # - but then, what happens if something changes and the check is no
+        #   longer valid by the time the handler runs?  :S
+        # - similarly, what happens to events when an actor vanishes before
+        #   they get to fire?  that's an ongoing problem -- maybe should be
+        #   using weak properties for all the bound entities, and invalidating
+        #   the event when any entity vanishes
+        # TODO must be holding the armor...  or standing on it?
+        if self.worn_by:
+            print("that's already being worn")
+            event.cancel()
+            return
+
+        # TODO surely, "stuff i'm wearing" belongs in a component, not hidden
+        # in a set of relations.  but then, do relations actually do anything?
+        self.worn_by.add(event.actor)
         print("you put on the armor")
-        Wears(event.actor, self.entity)
 
     @handler(Unequip)
     def handle_unequip(self, event):
-        print("you take off the armor")
-        for relation in list(self.entity.relations[Wears]):
-            # TODO again this has the problem of direction, ugh
-            # TODO lol you idiot this removes EVERYTHING
-            relation.destroy()
+        if event.actor in self.worn_by:
+            self.worn_by.remove(event.actor)
+            print("you take off the armor")
+        else:
+            print("you're not wearing the armor!")
 
     #@handler(Damage, on=wearer)
     #def handle_wearer_damage(self, event):

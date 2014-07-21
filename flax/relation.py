@@ -56,6 +56,18 @@ class WeakProperty:
         del self.__dict__[desc.name]
 
 
+# TODO ok so the problems i need to solve are
+# - when equipment is worn (received a Wear event), create a relation
+# - when checking for stats, look through modifiers:
+#   - me <-wears<- armor, armor has stat granted via wearing
+# - when armor is removed OR destroyed OR no longer armor OR etc, relation
+#   should go away as automatically as possible
+                # TODO i just completely broke everything; make this work
+                # again please.  i think i want stronger directions, and making
+                # the removal work more automatically, and an association
+                # between a relation and a component so we know where to find
+                # the modifiers here
+
 # TODO other thoughts:
 # - only equipment can be worn
 # - only creatures can wear equipment
@@ -85,16 +97,18 @@ class Relation:
         return CreateRelationEvent(relation)
 
     def attach(self):
-        self.from_entity.attach_relation(self)
-        self.to_entity.attach_relation(self)
+        cls = type(self)
+        self.from_entity.relates_to[cls].add(self)
+        self.to_entity.related_to[cls].add(self)
 
     def destroy(self):
         return self.detach()
         return DestroyRelationEvent(self)
 
     def detach(self):
-        self.from_entity.detach_relation(self)
-        self.to_entity.detach_relation(self)
+        cls = type(self)
+        self.from_entity.relates_to[cls].remove(self)
+        self.to_entity.related_to[cls].remove(self)
 
         del self.from_entity
         del self.to_entity
@@ -131,7 +145,7 @@ class DestroyRelationEvent:
             self.relation.detach()
 
 
-class Wears(Relation):
+class Wearing(Relation):
     on_destroy = event.Unequip
 
     # TODO finish me!!
@@ -141,3 +155,49 @@ class Contains:
     on_create = event.Take
     on_destroy = event.Drop
 """
+
+
+class RelationDescriptor:
+    def __init__(desc, relation):
+        desc.relation = relation
+
+    def __get__(desc, self, cls):
+        if self is None:
+            return cls
+
+        if desc.direction == 'subject':
+            return RelationProxy(self.entity, desc.relation, self.entity.relates_to[desc.relation])
+        elif desc.direction == 'object':
+            return RelationProxy(self.entity, desc.relation, self.entity.related_to[desc.relation])
+
+
+class RelationSubject(RelationDescriptor):
+    direction = 'subject'
+
+class RelationObject(RelationDescriptor):
+    direction = 'object'
+
+
+class RelationProxy:
+    def __init__(self, entity, relation, relation_set):
+        self.entity = entity
+        self.relation = relation
+        self.relation_set = relation_set
+
+    def __bool__(self):
+        return bool(self.relation_set)
+
+    def __contains__(self, entity):
+        # TODO this doesn't take direction into account
+        return any(entity is rel.from_entity for rel in self.relation_set)
+
+    def add(self, entity):
+        # TODO this doesn't take direction into account
+        self.relation(entity, self.entity)
+
+    def remove(self, entity):
+        # TODO this doesn't take direction into account
+        # TODO also, super clunky
+        for rel in list(self.relation_set):
+            if rel.from_entity is entity:
+                rel.detach()
