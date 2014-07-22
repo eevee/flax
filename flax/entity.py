@@ -152,8 +152,6 @@ class Entity:
         self.relations[reltype].remove(relation)
 
     def isa(self, entity_type):
-        # TODO unclear how this will handle inherited properties, or if it ever
-        # needs to (well, surely we want e.g. Potion)
         return self.type is entity_type
 
     @property

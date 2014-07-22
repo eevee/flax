@@ -364,8 +364,6 @@ class IPortal(IComponent):
 
 
 class Portal(Component, interface=IPortal):
-    # TODO this obviously doesn't work as well for something intended to be set
-    # by the entity constructor
     def __init__(self, *, destination):
         self.destination = destination
 

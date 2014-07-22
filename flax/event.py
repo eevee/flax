@@ -11,7 +11,6 @@ class EventListenerTarget(Enum):
 # sane" belong?
 class Event:
     cancelled = False
-    successful = False
 
     def fire(self, world):
         self.world = world
@@ -24,18 +23,8 @@ class Event:
         if self.cancelled:
             return
 
-        if not self.successful:
-            pass
-            # TODO is this...  bad?
-            #print("WARNING: event didn't succeed", self)
-
     def cancel(self):
-        assert not self.successful
         self.cancelled = True
-
-    def succeed(self):
-        assert not self.cancelled
-        self.successful = True
 
 
 class Walk(Event):
