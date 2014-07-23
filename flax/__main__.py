@@ -16,7 +16,7 @@ PALETTE = [
     ('message-old', 'dark gray', 'default', None, '#666', 'default'),
     ('message-fresh', 'white', 'default', None, '#fff', 'default'),
     ('inventory-default', 'default', 'default', None, 'default', 'default'),
-    ('inventory-selected', 'default', 'dark blue', None, 'default', '#068'),
+    ('inventory-selected', 'default', 'dark gray', None, 'default', 'g15'),
 
     # Architecture
     ('floor', 'black', 'default', None, '#666', 'default'),
@@ -286,15 +286,29 @@ class PlayerStatusWidget(urwid.Pile):
 
 
 class InventoryItem(urwid.WidgetWrap):
+    signals = ['fire', 'return']
+
     def __init__(self, item):
         self.item = item
         glyph, attr = item.type.tmp_rendering
         widget = urwid.Text([
             (attr, glyph),
             ' ',
-            ('ui-inventory', item.type.name),
+            item.type.name,
         ])
+        widget = urwid.AttrMap(widget, 'inventory-default', 'inventory-selected')
         super().__init__(widget)
+
+    # _selectable doesn't work on WidgetWrap
+    def selectable(self):
+        return True
+
+    def keypress(self, size, key):
+        if key == 'e':
+            from flax.event import Equip
+            self._emit('fire', Equip, self.item)
+            return
+        return key
 
 
 class InventoryMenu(urwid.WidgetWrap):
@@ -306,15 +320,21 @@ class InventoryMenu(urwid.WidgetWrap):
 
         from flax.component import IContainer
         for item in IContainer(player).inventory:
-            self.listbox.body.append(InventoryItem(item))
+            item_w = InventoryItem(item)
+
+            urwid.connect_signal(item_w, 'fire', lambda *a: self._emit('close', *a))
+
+            self.listbox.body.append(item_w)
 
         super().__init__(urwid.LineBox(self.listbox))
 
     def keypress(self, size, key):
         if key == 'esc':
             self._emit('close')
+        elif key == 'q':
+            self._emit('close')
 
-        return key
+        return self._w.keypress(size, key)
 
 
 class WriteDetectingStream:
@@ -456,7 +476,8 @@ class FlaxWidget(urwid.WidgetWrap):
         # a menu is open keys don't get here
         if key == 'i':
             inventory = InventoryMenu(self.world.player)
-            def close(widget):
+            def close(widget, *args):
+                print("well at least we got some args", *args)
                 self.overlay.change_overlay(None)
             urwid.connect_signal(inventory, 'close', close)
             self.overlay.change_overlay(inventory)

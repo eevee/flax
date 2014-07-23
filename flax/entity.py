@@ -236,6 +236,7 @@ Item = partial(EntityType, Portable, layer=Layer.item)
 
 # TODO implement a potion!
 #Potion = Item(UsablePotion, name='potion', tmp_rendering=('ð', 'default'))
+Potion = Item(name='potion', tmp_rendering=('ð', 'default'))
 
 
 # TODO not quite sure where this goes.  should it be able to react to events

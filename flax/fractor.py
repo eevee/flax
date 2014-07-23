@@ -3,7 +3,7 @@ import random
 
 from flax.geometry import Point, Rectangle, Size
 from flax.map import Map
-from flax.entity import Entity, CaveWall, Wall, Floor, Tree, Grass, CutGrass, Dirt, Player, Salamango, Armor, StairsDown, StairsUp
+from flax.entity import Entity, CaveWall, Wall, Floor, Tree, Grass, CutGrass, Dirt, Player, Salamango, Armor, Potion, StairsDown, StairsUp
 from flax.component import IPhysics, Empty
 
 
@@ -174,9 +174,11 @@ class Fractor:
         # TODO this probably varies by room style too, but we don't have a huge
         # variety yet of stuff to generate yet, so.
         assert self.map_canvas.floor_spaces, "can't place player with no open spaces"
-        points = random.sample(list(self.map_canvas.floor_spaces), 2)
+        points = random.sample(list(self.map_canvas.floor_spaces), 4)
         self.map_canvas.set_creature(points[0], Salamango)
         self.map_canvas.add_item(points[1], Armor)
+        self.map_canvas.add_item(points[2], Potion)
+        self.map_canvas.add_item(points[3], Potion)
 
     def place_portal(self, portal_type, destination):
         from flax.component import Portal
