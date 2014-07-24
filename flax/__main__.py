@@ -11,6 +11,7 @@ from flax.world import World
 PALETTE = [
     # (name, other)
     # (name, fg, bg, mono, fg_high, bg_high)
+    # high colors: 0 6 8 a d f, plus g0 .. g100 (24 of them)
 
     # UI
     ('message-old', 'dark gray', 'default', None, '#666', 'default'),
@@ -22,6 +23,7 @@ PALETTE = [
     ('floor', 'black', 'default', None, '#666', 'default'),
     ('stairs', 'white', 'dark gray', None, '#aaa', 'g19'),
     ('grass', 'dark green', 'default', None, '#060', 'default'),
+    ('tree', 'dark green', 'default', None, '#080', 'default'),
     ('dirt', 'brown', 'default', None, '#960', 'default'),
 
     # Creatures
@@ -30,6 +32,7 @@ PALETTE = [
 
     # Items
     ('potion', 'light magenta', 'default', None, '#f6f', 'default'),
+    ('wood', 'brown', 'default', None, '#960', 'default'),
 
     # Debug
     ('stdout', 'light gray', 'default', None, '#aaa', 'default'),

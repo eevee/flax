@@ -198,7 +198,7 @@ Floor = Architecture(
 Tree = Architecture(
     Solid,
     name='tree',
-    tmp_rendering=('↟', 'grass'))
+    tmp_rendering=('⯭', 'tree'))
 Grass = Architecture(
     Empty,
     name='grass',
@@ -234,9 +234,13 @@ Salamango = Creature(
 
 Item = partial(EntityType, Portable, layer=Layer.item)
 
+Gem = Item(name='gemstone', tmp_rendering=('♦', 'default'))
+
 # TODO implement a potion!
 #Potion = Item(UsablePotion, name='potion', tmp_rendering=('ð', 'default'))
 Potion = Item(name='potion', tmp_rendering=('ð', 'default'))
+
+Crate = Item(Container, name='crate', tmp_rendering=('▥', 'wood'))
 
 
 # TODO not quite sure where this goes.  should it be able to react to events
