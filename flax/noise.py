@@ -60,7 +60,7 @@ def perlin_noise_factory(*resolution):
         random_point = [random.gauss(0, 1) for _ in range(dimension)]
         # Then scale the result to a unit vector
         scale = sum(n * n for n in random_point) ** -0.5
-        gradients[point] = tuple(coord / scale for coord in random_point)
+        gradients[point] = tuple(coord * scale for coord in random_point)
 
     def noise(*point):
         assert len(point) == dimension
@@ -103,7 +103,14 @@ def perlin_noise_factory(*resolution):
 
             dots = next_dots
 
-        return dots[0] * scale_factor + 0.5
+        n = dots[0] * scale_factor + 0.5
+
+        # Finally: the output of the plain Perlin noise algorithm has a fairly
+        # strong bias towards the center due to the central limit theorem -- in
+        # fact the top and bottom 1/8 virtually never happen.  That's a quarter
+        # of our entire output range!  If only we had a function in [0..1] that
+        # could introduce a bias towards the endpoints...  oh, hey, we do!
+        return s_curve(n)
 
     return noise
 
@@ -143,7 +150,6 @@ def discrete_perlin_noise_factory(*dimensions, resolution, octaves=1):
     original_noises = []
     for o in range(octaves):
         resolutions = (resolution * 2 ** o,) * dimension
-        #original_noises.append(lambda *foo: 0.5)
         original_noises.append(perlin_noise_factory(*resolutions))
 
     def noise(*point):
@@ -152,12 +158,15 @@ def discrete_perlin_noise_factory(*dimensions, resolution, octaves=1):
             (coord + 0.5) / range_
             for (coord, range_) in zip(point, dimensions))
 
-        n = sum(original(*scaled_point) / 2 ** o for (o, original) in enumerate(original_noises))
+        n = sum(
+            original(*scaled_point) / 2 ** o
+            for (o, original) in enumerate(original_noises)
+        )
 
         # Need to scale n back down since adding all those extra octaves has
         # probably expanded it beyond [0, 1]
-        # TODO i think this will make the result tend to cluster around the
-        # middle even more strongly; any way to avoid that?
+        # TODO this will re-introduce the central clustering; any way to avoid
+        # that without overcompensating?
         # 1 octave: [0, 1]
         # 2 octaves: [0, 3/2]
         # 3 octaves: [0, 7/4]
