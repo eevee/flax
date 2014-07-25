@@ -29,7 +29,8 @@ class EntityType:
     Consists primarily of some number of components, each implementing a
     different interface.
     """
-    def __init__(self, *components, layer, name, tmp_rendering):
+    # TODO would be swell to require some components?  e.g. IRender, IPhysics?
+    def __init__(self, *components, layer, name, tmp_rendering=None):
         self.layer = layer
         self.name = name
         self.tmp_rendering = tmp_rendering
@@ -171,61 +172,95 @@ class Entity:
 ###############################################################################
 # From here on it's all just definitions of specific types.
 
+from enum import Enum
+
+class Sprite(Enum):
+    solid = ' '
+    fill = '▒'
+    floor = '·'
+    speckle = '░'
+
+    decayed_block = '◾'
+    rubble1 = '.'
+    rubble2 = ','
+    rubble3 = ';'
+    rubble4 = '⁖'
+
+    stairs_down = '𝆲'
+    stairs_up = '𝆱'
+
+    tree = '⯭'
+    neat_grass = 'ʬ'
+
+    flask = 'ð'
+    gem = '♦'
+    crate = '▥'
+    armor = '['
+
+    player = '☻'
+    lizard = ':'
+
+
+class Material(Enum): pass
+
+
 # -----------------------------------------------------------------------------
 # Architecture
+
+from flax.component import Render
 
 Architecture = partial(EntityType, layer=Layer.architecture)
 
 StairsDown = Architecture(
     Empty,
     PortalDownstairs,
-    name='stairs',
-    tmp_rendering=('𝆲', 'stairs'))
+    Render(sprite=Sprite.stairs_down, color='stairs'),
+    name='stairs')
 StairsUp = Architecture(
     Empty,
     PortalUpstairs,
     name='stairs',
-    tmp_rendering=('𝆱', 'stairs'))
+    tmp_rendering=(Sprite.stairs_up, 'stairs'))
 
 CaveWall = Architecture(
     Solid,
     name='wall',
-    tmp_rendering=(' ', 'default'))
+    tmp_rendering=(Sprite.solid, 'default'))
 Wall = Architecture(
     Solid,
     name='wall',
-    tmp_rendering=('▒', 'default'))
+    tmp_rendering=(Sprite.fill, 'default'))
 Floor = Architecture(
     Empty,
     name='dirt',
-    tmp_rendering=('·', 'floor'))
+    tmp_rendering=(Sprite.floor, 'floor'))
 Tree = Architecture(
     Solid,
     name='tree',
-    tmp_rendering=('⯭', 'tree'))
+    tmp_rendering=(Sprite.tree, 'tree'))
 Grass = Architecture(
     Empty,
     name='grass',
-    tmp_rendering=('ʬ', 'grass'))
+    tmp_rendering=(Sprite.neat_grass, 'grass'))
 CutGrass = Architecture(
     Empty,
     name='freshly-cut grass',
-    tmp_rendering=('░', 'grass'))
+    tmp_rendering=(Sprite.speckle, 'grass'))
 Dirt = Architecture(
     Empty,
     name='dirt',
-    tmp_rendering=('░', 'dirt'))
+    tmp_rendering=(Sprite.speckle, 'dirt'))
 
 DecayWall = partial(Architecture, Solid, name='wall')
-DecayWall0 = DecayWall(tmp_rendering=('▒', 'decay0'))
-DecayWall1 = DecayWall(tmp_rendering=('▒', 'decay1'))
-DecayWall2 = DecayWall(tmp_rendering=('◾', 'decay2'))
-DecayWall3 = DecayWall(tmp_rendering=('◾', 'decay3'))
+DecayWall0 = DecayWall(tmp_rendering=(Sprite.fill, 'decay0'))
+DecayWall1 = DecayWall(tmp_rendering=(Sprite.fill, 'decay1'))
+DecayWall2 = DecayWall(tmp_rendering=(Sprite.decayed_block, 'decay2'))
+DecayWall3 = DecayWall(tmp_rendering=(Sprite.decayed_block, 'decay3'))
 DecayFloor = partial(Architecture, Empty, name='floor')
-DecayFloor0 = DecayFloor(tmp_rendering=('.', 'decay1'))
-DecayFloor1 = DecayFloor(tmp_rendering=(',', 'decay2'))
-DecayFloor2 = DecayFloor(tmp_rendering=(';', 'decay3'))
-DecayFloor3 = DecayFloor(tmp_rendering=('⁖', 'decay3'))
+DecayFloor0 = DecayFloor(tmp_rendering=(Sprite.rubble1, 'decay1'))
+DecayFloor1 = DecayFloor(tmp_rendering=(Sprite.rubble2, 'decay2'))
+DecayFloor2 = DecayFloor(tmp_rendering=(Sprite.rubble3, 'decay3'))
+DecayFloor3 = DecayFloor(tmp_rendering=(Sprite.rubble4, 'decay3'))
 
 
 # -----------------------------------------------------------------------------
@@ -236,12 +271,12 @@ Player = Creature(
     Combatant(strength=3, health=10),
     PlayerIntelligence,
     name='you',
-    tmp_rendering=('☻', 'player'))
+    tmp_rendering=(Sprite.player, 'player'))
 Salamango = Creature(
     Combatant(strength=1, health=5),
     GenericAI,
     name='salamango',
-    tmp_rendering=(':', 'salamango'))
+    tmp_rendering=(Sprite.lizard, 'salamango'))
 
 
 # -----------------------------------------------------------------------------
@@ -249,13 +284,13 @@ Salamango = Creature(
 
 Item = partial(EntityType, Portable, layer=Layer.item)
 
-Gem = Item(name='gemstone', tmp_rendering=('♦', 'default'))
+Gem = Item(name='gemstone', tmp_rendering=(Sprite.gem, 'default'))
 
 # TODO implement a potion!
 #Potion = Item(UsablePotion, name='potion', tmp_rendering=('ð', 'default'))
-Potion = Item(name='potion', tmp_rendering=('ð', 'default'))
+Potion = Item(name='potion', tmp_rendering=(Sprite.flask, 'default'))
 
-Crate = Item(Container, name='crate', tmp_rendering=('▥', 'wood'))
+Crate = Item(Container, name='crate', tmp_rendering=(Sprite.crate, 'wood'))
 
 
 # TODO not quite sure where this goes.  should it be able to react to events
@@ -275,5 +310,5 @@ class Modifier:
 Armor = Item(
     Equipment(modifiers=[Modifier(ICombatant['strength'], add=3)]),
     name='armor',
-    tmp_rendering=('[', 'default'),
+    tmp_rendering=(Sprite.armor, 'default'),
 )

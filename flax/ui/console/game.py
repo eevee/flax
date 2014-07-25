@@ -63,19 +63,20 @@ class CellCanvas(urwid.Canvas):
         return None
 
     def content(self, trim_left=0, trim_top=0, cols=None, rows=None, attr=None):
+        from flax.component import Render
         for row in islice(self.map.rows, trim_top, trim_top + rows):
             ret = []
             current_attr = None
             current_glyphs = []
             for tile in islice(row, trim_left, trim_left + cols):
                 obj = next(tile.entities)
-                glyph, attr = obj.type.tmp_rendering
+                glyph, attr = Render.adapt(obj).glyph()
                 if current_attr != attr:
                     if current_glyphs:
                         ret.append((current_attr, None, ''.join(current_glyphs).encode('utf8')))
                         current_glyphs = []
                     current_attr = attr
-                current_glyphs.append(glyph)
+                current_glyphs.append(glyph.value)
             if current_glyphs:
                 ret.append((current_attr, None, ''.join(current_glyphs).encode('utf8')))
 

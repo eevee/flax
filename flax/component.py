@@ -317,6 +317,25 @@ class Component(metaclass=ComponentMeta, interface=IComponent):
 # Particular interfaces and components follow.
 
 # -----------------------------------------------------------------------------
+# Rendering
+
+class IRender(IComponent):
+    glyph = static_attribute("")
+
+
+class Render(Component, interface=IComponent):
+    def __init__(self, sprite, color):
+        self.glyph = sprite
+
+    def glyph(self):
+        return self.entity.type.tmp_rendering
+
+class BCRender(Component, interface=IComponent):
+    @property
+    def glyph(self):
+        return self.entity.type.tmp_rendering
+
+# -----------------------------------------------------------------------------
 # Physics
 
 class IPhysics(IComponent):
