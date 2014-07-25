@@ -25,6 +25,10 @@ PALETTE = [
     ('grass', 'dark green', 'default', None, '#060', 'default'),
     ('tree', 'dark green', 'default', None, '#080', 'default'),
     ('dirt', 'brown', 'default', None, '#960', 'default'),
+    ('decay0', 'white', 'default', None, 'g85', 'default'),
+    ('decay1', 'light gray', 'default', None, 'g65', 'default'),
+    ('decay2', 'dark gray', 'default', None, 'g45', 'default'),
+    ('decay3', 'black', 'default', None, 'g25', 'default'),
 
     # Creatures
     ('player', 'yellow', 'default', None, '#ff6', 'default'),

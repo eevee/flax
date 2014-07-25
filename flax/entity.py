@@ -91,6 +91,10 @@ class Entity:
         # overrides
         # TODO one obvious downside to this: you can't have an entity's
         # initializer only /partly/ override a type's
+        # TODO seems like ComponentAttribute should fall back from the instance
+        # to the type, just like python's attribute lookup.  but that doesn't
+        # work if everything has to go through the constructor.  or maybe i'm
+        # just worrying too much about mem use.
         for interface, component in self.type.components.items():
             if interface in initializer_map:
                 initializer = initializer_map.pop(interface)
@@ -211,6 +215,17 @@ Dirt = Architecture(
     Empty,
     name='dirt',
     tmp_rendering=('░', 'dirt'))
+
+DecayWall = partial(Architecture, Solid, name='wall')
+DecayWall0 = DecayWall(tmp_rendering=('▒', 'decay0'))
+DecayWall1 = DecayWall(tmp_rendering=('▒', 'decay1'))
+DecayWall2 = DecayWall(tmp_rendering=('◾', 'decay2'))
+DecayWall3 = DecayWall(tmp_rendering=('◾', 'decay3'))
+DecayFloor = partial(Architecture, Empty, name='floor')
+DecayFloor0 = DecayFloor(tmp_rendering=('.', 'decay1'))
+DecayFloor1 = DecayFloor(tmp_rendering=(',', 'decay2'))
+DecayFloor2 = DecayFloor(tmp_rendering=(';', 'decay3'))
+DecayFloor3 = DecayFloor(tmp_rendering=('⁖', 'decay3'))
 
 
 # -----------------------------------------------------------------------------

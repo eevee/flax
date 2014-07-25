@@ -1,11 +1,12 @@
 import math
 import random
 
-from flax.geometry import Point, Rectangle, Size
-from flax.map import Map
+from flax.component import IPhysics, Empty
 import flax.entity as e
 from flax.entity import Entity, CaveWall, Wall, Floor, Tree, Grass, CutGrass, Dirt, Player, Salamango, Armor, Potion, StairsDown, StairsUp
-from flax.component import IPhysics, Empty
+from flax.geometry import Point, Rectangle, Size
+from flax.map import Map
+from flax.noise import discrete_perlin_noise_factory
 
 
 def random_normal_int(mu, sigma):
@@ -57,6 +58,15 @@ class MapCanvas:
         self._creature_grid = {point: None for point in self.rect.iter_points()}
 
         self.floor_spaces = set()
+
+    def clear(self, entity_type):
+        for point in self.rect.iter_points():
+            self._arch_grid[point] = entity_type
+
+        if entity_type.components.get(IPhysics) is Empty:
+            self.floor_spaces = set(self.rect.iter_points())
+        else:
+            self.floor_spaces = set()
 
     def set_architecture(self, point, entity_type):
         self._arch_grid[point] = entity_type
@@ -118,7 +128,7 @@ class Room:
         assert self.rect in canvas.rect
 
         for point in self.rect.iter_points():
-            canvas.set_architecture(point, random.choice([Floor, CutGrass, CutGrass, Grass]))
+            canvas.set_architecture(point, e.Floor)
 
         # Top and bottom
         for x in self.rect.range_width():
@@ -278,7 +288,6 @@ class BinaryPartitionFractor(Fractor):
 class PerlinFractor(Fractor):
     def generate(self):
         # TODO not guaranteed that all the walkable spaces are attached
-        from flax.noise import discrete_perlin_noise_factory
         noise = discrete_perlin_noise_factory(*self.region.size, resolution=4, octaves=2)
         for point in self.region.iter_points():
             n = noise(*point)
@@ -293,3 +302,47 @@ class PerlinFractor(Fractor):
             else:
                 arch = Tree
             self.map_canvas.set_architecture(point, arch)
+
+
+class RuinFractor(Fractor):
+    # TODO should really really let this wrap something else
+    def generate(self):
+        self.map_canvas.clear(Floor)
+
+        room = Room(self.region)
+        room.draw_to_canvas(self.map_canvas)
+
+        noise = discrete_perlin_noise_factory(*self.region.size, resolution=5, octaves=4)
+        for point in self.region.iter_points():
+            # TODO would greatly prefer some architecture types that just have
+            # a 'decay' property affecting their rendering, but that would
+            # require rendering to be per-entity, and either a method or
+            # something that could be updated on the fly
+            if self.map_canvas._arch_grid[point] is Wall:
+                n = noise(*point)
+                if n < 0.2:
+                    arch = e.DecayWall0
+                elif n < 0.4:
+                    arch = e.DecayWall1
+                elif n < 0.6:
+                    arch = e.DecayWall2
+                elif n < 0.8:
+                    arch = e.DecayWall3
+                else:
+                    arch = e.Wall
+                self.map_canvas.set_architecture(point, arch)
+            elif self.map_canvas._arch_grid[point] is Floor:
+                n = noise(*point)
+                if n < 0.1:
+                    arch = e.DecayFloor0
+                elif n < 0.2:
+                    arch = e.DecayFloor1
+                elif n < 0.3:
+                    arch = e.DecayFloor2
+                elif n < 0.4:
+                    arch = e.DecayFloor3
+                else:
+                    arch = e.Floor
+                self.map_canvas.set_architecture(point, arch)
+
+
