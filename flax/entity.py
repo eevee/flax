@@ -215,52 +215,60 @@ StairsDown = Architecture(
     Empty,
     PortalDownstairs,
     Render(sprite=Sprite.stairs_down, color='stairs'),
-    name='stairs')
+    name='stairs',
+)
 StairsUp = Architecture(
     Empty,
     PortalUpstairs,
+    Render(sprite=Sprite.stairs_up, color='stairs'),
     name='stairs',
-    tmp_rendering=(Sprite.stairs_up, 'stairs'))
-
+)
 CaveWall = Architecture(
     Solid,
+    Render(sprite=Sprite.solid, color='default'),
     name='wall',
-    tmp_rendering=(Sprite.solid, 'default'))
+)
 Wall = Architecture(
     Solid,
+    Render(sprite=Sprite.fill, color='default'),
     name='wall',
-    tmp_rendering=(Sprite.fill, 'default'))
+)
 Floor = Architecture(
     Empty,
+    Render(sprite=Sprite.floor, color='floor'),
     name='dirt',
-    tmp_rendering=(Sprite.floor, 'floor'))
+)
 Tree = Architecture(
     Solid,
+    Render(sprite=Sprite.tree, color='tree'),
     name='tree',
-    tmp_rendering=(Sprite.tree, 'tree'))
+)
 Grass = Architecture(
     Empty,
+    Render(sprite=Sprite.neat_grass, color='grass'),
     name='grass',
-    tmp_rendering=(Sprite.neat_grass, 'grass'))
+)
 CutGrass = Architecture(
     Empty,
+    Render(sprite=Sprite.speckle, color='grass'),
     name='freshly-cut grass',
-    tmp_rendering=(Sprite.speckle, 'grass'))
+)
 Dirt = Architecture(
     Empty,
+    Render(sprite=Sprite.speckle, color='dirt'),
     name='dirt',
-    tmp_rendering=(Sprite.speckle, 'dirt'))
+)
 
 DecayWall = partial(Architecture, Solid, name='wall')
-DecayWall0 = DecayWall(tmp_rendering=(Sprite.fill, 'decay0'))
-DecayWall1 = DecayWall(tmp_rendering=(Sprite.fill, 'decay1'))
-DecayWall2 = DecayWall(tmp_rendering=(Sprite.decayed_block, 'decay2'))
-DecayWall3 = DecayWall(tmp_rendering=(Sprite.decayed_block, 'decay3'))
+DecayWall0 = DecayWall(Render(sprite=Sprite.fill, color='decay0'))
+DecayWall1 = DecayWall(Render(sprite=Sprite.fill, color='decay1'))
+DecayWall2 = DecayWall(Render(sprite=Sprite.decayed_block, color='decay2'))
+DecayWall3 = DecayWall(Render(sprite=Sprite.decayed_block, color='decay3'))
 DecayFloor = partial(Architecture, Empty, name='floor')
-DecayFloor0 = DecayFloor(tmp_rendering=(Sprite.rubble1, 'decay1'))
-DecayFloor1 = DecayFloor(tmp_rendering=(Sprite.rubble2, 'decay2'))
-DecayFloor2 = DecayFloor(tmp_rendering=(Sprite.rubble3, 'decay3'))
-DecayFloor3 = DecayFloor(tmp_rendering=(Sprite.rubble4, 'decay3'))
+DecayFloor0 = DecayFloor(Render(sprite=Sprite.rubble1, color='decay1'))
+DecayFloor1 = DecayFloor(Render(sprite=Sprite.rubble2, color='decay2'))
+DecayFloor2 = DecayFloor(Render(sprite=Sprite.rubble3, color='decay3'))
+DecayFloor3 = DecayFloor(Render(sprite=Sprite.rubble4, color='decay3'))
 
 
 # -----------------------------------------------------------------------------
@@ -270,13 +278,15 @@ Creature = partial(EntityType, Solid, Container, layer=Layer.creature)
 Player = Creature(
     Combatant(strength=3, health=10),
     PlayerIntelligence,
+    Render(sprite=Sprite.player, color='player'),
     name='you',
-    tmp_rendering=(Sprite.player, 'player'))
+)
 Salamango = Creature(
     Combatant(strength=1, health=5),
     GenericAI,
+    Render(sprite=Sprite.lizard, color='salamango'),
     name='salamango',
-    tmp_rendering=(Sprite.lizard, 'salamango'))
+)
 
 
 # -----------------------------------------------------------------------------
@@ -284,13 +294,13 @@ Salamango = Creature(
 
 Item = partial(EntityType, Portable, layer=Layer.item)
 
-Gem = Item(name='gemstone', tmp_rendering=(Sprite.gem, 'default'))
+Gem = Item(Render(sprite=Sprite.gem, color='default'), name='gemstone')
 
 # TODO implement a potion!
 #Potion = Item(UsablePotion, name='potion', tmp_rendering=('ð', 'default'))
-Potion = Item(name='potion', tmp_rendering=(Sprite.flask, 'default'))
+Potion = Item(Render(sprite=Sprite.flask, color='default'), name='potion')
 
-Crate = Item(Container, name='crate', tmp_rendering=(Sprite.crate, 'wood'))
+Crate = Item(Container, Render(sprite=Sprite.crate, color='wood'), name='crate')
 
 
 # TODO not quite sure where this goes.  should it be able to react to events
@@ -309,6 +319,6 @@ class Modifier:
 
 Armor = Item(
     Equipment(modifiers=[Modifier(ICombatant['strength'], add=3)]),
+    Render(sprite=Sprite.armor, color='default'),
     name='armor',
-    tmp_rendering=(Sprite.armor, 'default'),
 )

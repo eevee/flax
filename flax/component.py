@@ -320,20 +320,15 @@ class Component(metaclass=ComponentMeta, interface=IComponent):
 # Rendering
 
 class IRender(IComponent):
-    glyph = static_attribute("")
+    sprite = static_attribute("")
+    color = static_attribute("")
 
 
-class Render(Component, interface=IComponent):
+class Render(Component, interface=IRender):
     def __init__(self, sprite, color):
-        self.glyph = sprite
+        self.sprite = sprite
+        self.color = color
 
-    def glyph(self):
-        return self.entity.type.tmp_rendering
-
-class BCRender(Component, interface=IComponent):
-    @property
-    def glyph(self):
-        return self.entity.type.tmp_rendering
 
 # -----------------------------------------------------------------------------
 # Physics
