@@ -170,9 +170,10 @@ class Entity:
 
 
 ###############################################################################
-# From here on it's all just definitions of specific types.
-
-from enum import Enum
+# Sprite and color enumerations.
+# These are separate because (a) they naturally get reused a lot among similar
+# objects and (b) it becomes considerably easier for another UI implementation
+# to swap them out for simpler characters or sprites or whatever.
 
 class Sprite(Enum):
     solid = ' '
@@ -203,6 +204,9 @@ class Sprite(Enum):
 
 class Material(Enum): pass
 
+
+###############################################################################
+# From here on it's all just definitions of specific types.
 
 # -----------------------------------------------------------------------------
 # Architecture

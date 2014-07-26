@@ -8,6 +8,7 @@ from .game import PALETTE
 
 
 def main():
+    global widget
     world = World()
     widget = FlaxWidget(world)
     loop = urwid.MainLoop(widget, PALETTE)

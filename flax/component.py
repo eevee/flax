@@ -411,13 +411,16 @@ class Container(Component, interface=IContainer):
 
 class ICombatant(IComponent):
     """Implements an entity's ability to fight and take damage."""
-    health = static_attribute("Entity's health meter.")
+    maximum_health = static_attribute("Entity's maximum possible health.")
+    current_health = static_attribute("Current amount of health.")
     strength = static_attribute("Generic placeholder stat while I figure stuff out.")
 
 
 class Combatant(Component, interface=ICombatant):
+    """Regular creature that has stats, fights with weapons, etc."""
     def __init__(self, *, health, strength):
-        self.health = health
+        self.maximum_health = health
+        self.current_health = health
         self.strength = strength
 
     # TODO need several things to happen with attributes here
@@ -428,12 +431,15 @@ class Combatant(Component, interface=ICombatant):
     # of constructor arguments that are used to compute an attribute but not
     # stored anywhere
 
+    def lose_health(self, amount):
+        self.current_health -= amount
+
+        if self.current_health <= 0:
+            event.world.queue_immediate_event(Die(self.entity))
+
     @handler(Damage)
     def handle_damage(self, event):
-        self.health -= event.amount
-
-        if self.health <= 0:
-            event.world.queue_immediate_event(Die(self.entity))
+        self.lose_health(event.amount)
 
     @handler(MeleeAttack)
     def handle_attack(self, event):

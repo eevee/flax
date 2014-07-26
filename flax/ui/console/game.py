@@ -22,6 +22,8 @@ PALETTE = [
     ('message-fresh', 'white', 'default', None, '#fff', 'default'),
     ('inventory-default', 'default', 'default', None, 'default', 'default'),
     ('inventory-selected', 'default', 'dark gray', None, 'default', 'g15'),
+    ('health-full-fill', 'white', 'dark green', None, '#fff', '#080'),
+    ('health-full-empty', 'dark green', 'default', None, '#060', 'default'),
 
     # Architecture
     ('floor', 'black', 'default', None, '#666', 'default'),
@@ -249,20 +251,72 @@ class CellWidget(urwid.Widget):
         self.world.advance()
 
         # FIXME lol this no longer works! FIXME
+        from flax.ui.console import widget
+        widget.status_widget.update()
         #widget.status_widget.update()
 
         self._invalidate()
+
+
+class MeterWidget(urwid.WidgetWrap):
+    def __init__(self, full_attr, empty_attr, current=1, maximum=1):
+        self.full_attr = full_attr
+        self.empty_attr = empty_attr
+        self._current = current
+        self._maximum = maximum
+
+        super().__init__(urwid.Text("", wrap='clip'))
+
+    @property
+    def current(self):
+        return self._current
+
+    @current.setter
+    def current(self, value):
+        self._current = value
+        self._invalidate()
+
+    @property
+    def maximum(self):
+        return self._maximum
+
+    @maximum.setter
+    def maximum(self, value):
+        self._maximum = value
+        self._invalidate()
+
+    def render(self, size, focus=False):
+        cols = size[0]
+        # XXX urwid trims trailing whitespace, so this gets cropped if it
+        # touches the right edge of the screen  :S
+        cols -= 1
+
+        text = "{}/{}".format(self._current, self._maximum)
+
+        fill = round(self.current / self.maximum * cols)
+        fill_text = text[:fill].ljust(fill, ' ')
+        empty_text = text[fill:].ljust(cols - fill, '░')
+
+        self._w.set_text([
+            ('health-full-fill', fill_text),
+            ('health-full-empty', empty_text),
+        ])
+        return super().render(size, focus)
 
 
 class PlayerStatusWidget(urwid.Pile):
     def __init__(self, player):
         self.player = player
 
-        self.health_text = urwid.Text("Health: ???")
-        self.strength_text = urwid.Text("Health: ???")
+        self.health_meter = MeterWidget('health-cur-full', 'health-max-full')
+        health_row = urwid.Columns([
+            ('pack', urwid.Text("HP: ")),
+            self.health_meter,
+        ])
+        self.strength_text = urwid.Text("Strength: ???")
 
         super().__init__([
-            ('pack', self.health_text),
+            ('pack', health_row),
             ('pack', self.strength_text),
             urwid.SolidFill(' '),
         ])
@@ -271,8 +325,11 @@ class PlayerStatusWidget(urwid.Pile):
 
     def update(self):
         from flax.component import ICombatant
-        self.health_text.set_text("Health: {}".format(ICombatant(self.player).health))
-        self.strength_text.set_text("Strength: {}".format(ICombatant(self.player).strength))
+        combatant = ICombatant(self.player)
+        #self.health_text.set_text("Health: {}".format(ICombatant(self.player).health))
+        self.health_meter.current = combatant.current_health
+        self.health_meter.maximum = combatant.maximum_health
+        self.strength_text.set_text("Strength: {}".format(combatant.strength))
         self._invalidate()
 
 
