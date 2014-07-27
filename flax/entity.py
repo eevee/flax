@@ -36,6 +36,7 @@ class EntityType:
         self.tmp_rendering = tmp_rendering
 
         self.components = {}
+        self.component_data = {}
         for component in components:
             iface = component.interface
             if iface in self.components:
@@ -43,7 +44,10 @@ class EntityType:
                     "Got two components for the same interface "
                     "({!r}): {!r} and {!r}"
                     .format(iface, self.components[iface], component))
-            self.components[iface] = component
+            # Use .component to "unpack" initializers
+            self.components[iface] = component.component
+
+            component.init_entity_type(self)
 
     def __repr__(self):
         return "<{}: {}>".format(type(self).__qualname__, self.name)
@@ -53,6 +57,12 @@ class EntityType:
         these are classes.
         """
         return Entity(self, *args, **kwargs)
+
+    def __getitem__(self, key):
+        return self.component_data[key]
+
+    def __setitem__(self, key, value):
+        self.component_data[key] = value
 
 
 class Entity:
@@ -90,8 +100,6 @@ class Entity:
 
         # Call each component as an initializer, allowing the passed-in ones as
         # overrides
-        # TODO one obvious downside to this: you can't have an entity's
-        # initializer only /partly/ override a type's
         # TODO seems like ComponentAttribute should fall back from the instance
         # to the type, just like python's attribute lookup.  but that doesn't
         # work if everything has to go through the constructor.  or maybe i'm
@@ -148,6 +156,15 @@ class Entity:
         # TODO: fire events when stats change?  (is that how the UI should be
         # updated?)
 
+    def __getitem__(self, key):
+        try:
+            return self.component_data[key]
+        except KeyError:
+            return self.type.component_data[key]
+
+    def __setitem__(self, key, value):
+        self.component_data[key] = value
+
     def attach_relation(self, relation):
         reltype = type(relation)
         self.relations[reltype].add(relation)
@@ -180,6 +197,8 @@ class Sprite(Enum):
     fill = '▒'
     floor = '·'
     speckle = '░'
+    pillar = '♊'
+    fence = '⌗'
 
     decayed_block = '◾'
     rubble1 = '.'
@@ -189,14 +208,23 @@ class Sprite(Enum):
 
     stairs_down = '𝆲'
     stairs_up = '𝆱'
+    door_closed = '⌸'
+    door_open = '⎕'
+    door_locked = '⍯'
+    throne = '♄'
 
     tree = '⯭'
     neat_grass = 'ʬ'
 
     flask = 'ð'
     gem = '♦'
+    key = '⚷'
     crate = '▥'
+    chest = '⏏'
     armor = '['
+    shield = '⛉'
+    ring = '♁'
+    amulet = '♉'
 
     player = '☻'
     lizard = ':'
@@ -269,10 +297,23 @@ DecayWall1 = DecayWall(Render(sprite=Sprite.fill, color='decay1'))
 DecayWall2 = DecayWall(Render(sprite=Sprite.decayed_block, color='decay2'))
 DecayWall3 = DecayWall(Render(sprite=Sprite.decayed_block, color='decay3'))
 DecayFloor = partial(Architecture, Empty, name='floor')
-DecayFloor0 = DecayFloor(Render(sprite=Sprite.rubble1, color='decay1'))
-DecayFloor1 = DecayFloor(Render(sprite=Sprite.rubble2, color='decay2'))
+DecayFloor0 = DecayFloor(Render(sprite=Sprite.rubble3, color='decay1'))
+DecayFloor1 = DecayFloor(Render(sprite=Sprite.rubble3, color='decay2'))
 DecayFloor2 = DecayFloor(Render(sprite=Sprite.rubble3, color='decay3'))
-DecayFloor3 = DecayFloor(Render(sprite=Sprite.rubble4, color='decay3'))
+DecayFloor3 = DecayFloor(Render(sprite=Sprite.rubble3, color='decay3'))
+
+from flax.component import Breakable, HealthRender
+Rubble = Architecture(
+    Solid,
+    Breakable(health=10),
+    HealthRender(
+        (2, Sprite.rubble1, 'decay1'),
+        (2, Sprite.rubble2, 'decay2'),
+        (2, Sprite.rubble3, 'decay3'),
+        (2, Sprite.rubble4, 'decay4'),
+    ),
+    name='rubble',
+)
 
 
 # -----------------------------------------------------------------------------

@@ -97,6 +97,10 @@ class IComponentFactory(zi.Interface):
     classes, but sometimes they're wrapped in a `ComponentInitializer`.
     """
     interface = zi.Attribute("The interface this component implements.")
+    component = zi.Attribute("The real underlying component class.")
+
+    def init_entity_type(entity_type):
+        """Run the component's `__typeinit__` on the given entity type."""
 
     def init_entity(entity):
         """Run the component's `__init__` on the given entity."""
@@ -114,16 +118,20 @@ class ComponentInitializer:
     """What you get when you call a component class.  Used as a deferred init
     mechanism.
     """
-    def __init__(self, component, **kwargs):
+    def __init__(self, component, args, kwargs):
         self.component = component
+        self.args = args
         self.kwargs = kwargs
 
     @property
     def interface(self):
         return self.component.interface
 
+    def init_entity_type(self, entity):
+        self.component.init_entity_type(entity, *self.args, **self.kwargs)
+
     def init_entity(self, entity):
-        self.component.init_entity(entity, **self.kwargs)
+        self.component.init_entity(entity, *self.args, **self.kwargs)
 
     def adapt(self, entity):
         return self.component.adapt(entity)
@@ -153,6 +161,10 @@ class ComponentMeta(type):
         # TODO should this automatically include bases' handlers?
         attrs['event_handlers'] = event_handlers
 
+        # Prevent assigning to arbitrary attributes, and cut down on storage
+        # space a bit
+        #attrs.setdefault('__slots__', ())
+
         return super().__new__(meta, name, bases, attrs)
 
     def __init__(cls, name, bases, attrs, *, interface=None):
@@ -174,6 +186,9 @@ class ComponentMeta(type):
             mode = attr.queryTaggedValue('mode')
             if mode == 'static':
                 if key in cls.__dict__:
+                    # TODO i have seen the light: there is a good reason to do
+                    # this.  see HealthRender
+                    continue
                     raise TypeError(
                         "Implementation {!r} "
                         "defines static attribute {!r}"
@@ -182,23 +197,35 @@ class ComponentMeta(type):
                 else:
                     setattr(cls, key, ComponentAttribute(attr))
 
-    def __call__(cls, **kwargs):
+    def __call__(cls, *args, **kwargs):
         """Override object construction.  We don't want to make a component
         object; we want to make something that can be used to initialize an
         entity later.  That something is a `ComponentInitializer`.
         """
-        return ComponentInitializer(cls, **kwargs)
+        return ComponentInitializer(cls, args, kwargs)
 
-    def init_entity(cls, entity, **kwargs):
+    def init_entity(cls, entity, *args, **kwargs):
         """Initialize an entity.  Calls the class's ``__init__`` method."""
         self = cls.adapt(entity)
-        self.__init__(**kwargs)
+        self.__init__(*args, **kwargs)
+
+    def init_entity_type(cls, entity_type, *args, **kwargs):
+        """Initialize an entity.  Calls the class's ``__typeinit__`` method."""
+        # Let's not use .adapt() and make the wrong impression here
+        # TODO self.entity will actually be the class here which seems mega
+        # janky.
+        self = cls.__new__(cls, entity_type)
+        self.__typeinit__(*args, **kwargs)
 
     def adapt(cls, entity):
         """The actual constructor.  Creates a new component that wraps the
         given entity.  Does not call ``__init__``.
         """
         return cls.__new__(cls, entity)
+
+    @property
+    def component(cls):
+        return cls
 
 
 class ComponentAttribute:
@@ -211,7 +238,10 @@ class ComponentAttribute:
 
         attr = desc.zope_attribute
         data = self.entity.component_data
-        value = data[attr]
+        try:
+            value = self.entity[attr]
+        except KeyError:
+            raise AttributeError
 
         # TODO this doesn't seem right really.  i think modifiers should really
         # be tracked separately, and removed by the relation destructor
@@ -294,9 +324,7 @@ class Component(metaclass=ComponentMeta, interface=IComponent):
     ``@handler``.  Such methods only exist as event handlers, and can't be
     called directly.
     """
-
-    entity = None
-    """The entity being wrapped.  Mostly useful for constructing events."""
+    __slots__ = ('entity',)
 
     def __new__(cls, entity):
         # This is the "real" constructor.  It has to use __new__, since
@@ -304,6 +332,28 @@ class Component(metaclass=ComponentMeta, interface=IComponent):
         self = super().__new__(cls)
         self.entity = entity
         return self
+
+    def __typeinit__(self):
+        pass
+
+    def __init__(self):
+        pass
+
+    def __setattr__(self, key, value):
+        # TODO this approach will break inheriting ad hoc attributes in
+        # subclasses; is that a concern?
+        cls = type(self)
+        if hasattr(cls, key):
+            super().__setattr__(key, value)
+        else:
+            self.entity[cls, key] = value
+
+    def __getattr__(self, key):
+        cls = type(self)
+        try:
+            return self.entity[cls, key]
+        except KeyError:
+            raise AttributeError
 
     def handle_event(self, event):
         # TODO what order should these be called in?
@@ -325,9 +375,33 @@ class IRender(IComponent):
 
 
 class Render(Component, interface=IRender):
-    def __init__(self, sprite, color):
+    def __typeinit__(self, sprite, color):
         self.sprite = sprite
         self.color = color
+
+
+class HealthRender(Component, interface=IRender):
+    def __typeinit__(self, *choices):
+        self.choices = []
+
+        total_weight = sum(choice[0] for choice in choices)
+        for weight, sprite, color in choices:
+            self.choices.append((weight / total_weight, sprite, color))
+
+    def current_rendering(self):
+        health = ICombatant(self.entity).current_health / ICombatant(self.entity).maximum_health
+        for weight, sprite, color in self.choices:
+            if health <= weight:
+                return sprite, color
+            health -= weight
+
+    @property
+    def sprite(self):
+        return self.current_rendering()[0]
+
+    @property
+    def color(self):
+        return self.current_rendering()[1]
 
 
 # -----------------------------------------------------------------------------
@@ -342,7 +416,8 @@ class IPhysics(IComponent):
 
 class Solid(Component, interface=IPhysics):
     def blocks(self, actor):
-        # TODO i have /zero/ idea how passwall works here
+        # TODO i have /zero/ idea how passwall works here -- perhaps objects
+        # should be made of distinct "materials"...
         return True
 
     # TODO there's a fuzzy line here.  what's the difference between a
@@ -418,7 +493,7 @@ class ICombatant(IComponent):
 
 class Combatant(Component, interface=ICombatant):
     """Regular creature that has stats, fights with weapons, etc."""
-    def __init__(self, *, health, strength):
+    def __typeinit__(self, *, health, strength):
         self.maximum_health = health
         self.current_health = health
         self.strength = strength
@@ -455,6 +530,18 @@ class Combatant(Component, interface=ICombatant):
         print("{} has died".format(self.entity.type.name))
         event.world.current_map.remove(self.entity)
         # TODO and drop inventory, and/or a corpse
+
+
+class Breakable(Component, interface=ICombatant):
+    def __typeinit__(self, *, health):
+        self.maximum_health = health
+        self.current_health = health
+        # TODO breakables don't /have/ strength.  is this separate?
+        # TODO should interfaces/components be able to say they can only exist
+        # for entities that also support some other interface?
+        self.strength = 0
+
+
 
 
 # -----------------------------------------------------------------------------
@@ -533,7 +620,7 @@ class IEquipment(IComponent):
 class Equipment(Component, interface=IEquipment):
     worn_by = RelationObject(Wearing)
 
-    def __init__(self, *, modifiers=None):
+    def __typeinit__(self, *, modifiers=None):
         self.modifiers = modifiers or ()
 
     @handler(Equip)

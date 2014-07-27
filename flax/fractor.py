@@ -339,8 +339,8 @@ class RuinFractor(Fractor):
                     arch = e.DecayFloor1
                 elif n < 0.3:
                     arch = e.DecayFloor2
-                elif n < 0.4:
-                    arch = e.DecayFloor3
+                elif n < 0.31:
+                    arch = e.Rubble
                 else:
                     arch = e.Floor
                 self.map_canvas.set_architecture(point, arch)
