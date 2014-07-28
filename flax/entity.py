@@ -194,17 +194,29 @@ class Entity:
 
 class Sprite(Enum):
     solid = ' '
-    fill = '▒'
+    fill = '█'
     floor = '·'
     speckle = '░'
     pillar = '♊'
     fence = '⌗'
 
     decayed_block = '◾'
-    rubble1 = '.'
-    rubble2 = ','
-    rubble3 = ';'
-    rubble4 = '⁖'
+    rubble1 = '⬝'
+    rubble2 = '⁖'
+    rubble3 = '⁘'
+    rubble4 = '⁙'
+    ruin1a = '▙'
+    ruin1b = '▛'
+    ruin1c = '▜'
+    ruin1d = '▟'
+    ruin1e = '█'
+    ruin2 = '═'
+    ruin3a = '%'
+    ruin3b = '#'
+    ruin4a = '▖'
+    ruin4b = '▗'
+    ruin4c = '▘'
+    ruin4d = '▝'
 
     stairs_down = '𝆲'
     stairs_up = '𝆱'
@@ -262,7 +274,7 @@ CaveWall = Architecture(
 )
 Wall = Architecture(
     Solid,
-    Render(sprite=Sprite.fill, color='default'),
+    Render(sprite=Sprite.fill, color='wall'),
     name='wall',
 )
 Floor = Architecture(
@@ -291,28 +303,33 @@ Dirt = Architecture(
     name='dirt',
 )
 
-DecayWall = partial(Architecture, Solid, name='wall')
-DecayWall0 = DecayWall(Render(sprite=Sprite.fill, color='decay0'))
-DecayWall1 = DecayWall(Render(sprite=Sprite.fill, color='decay1'))
-DecayWall2 = DecayWall(Render(sprite=Sprite.decayed_block, color='decay2'))
-DecayWall3 = DecayWall(Render(sprite=Sprite.decayed_block, color='decay3'))
-DecayFloor = partial(Architecture, Empty, name='floor')
-DecayFloor0 = DecayFloor(Render(sprite=Sprite.rubble3, color='decay1'))
-DecayFloor1 = DecayFloor(Render(sprite=Sprite.rubble3, color='decay2'))
-DecayFloor2 = DecayFloor(Render(sprite=Sprite.rubble3, color='decay3'))
-DecayFloor3 = DecayFloor(Render(sprite=Sprite.rubble3, color='decay3'))
-
 from flax.component import Breakable, HealthRender
 Rubble = Architecture(
+    Empty,
+    Breakable(health=10),
+    HealthRender(
+        (2, Sprite.rubble4, 'decay2'),
+        (2, Sprite.rubble3, 'decay2'),
+        (2, Sprite.rubble2, 'decay2'),
+        (2, Sprite.rubble1, 'decay3'),
+    ),
+    name='rubble',
+)
+
+Ruin = Architecture(
     Solid,
     Breakable(health=10),
     HealthRender(
-        (2, Sprite.rubble1, 'decay1'),
-        (2, Sprite.rubble2, 'decay2'),
-        (2, Sprite.rubble3, 'decay3'),
-        (2, Sprite.rubble4, 'decay4'),
+        (1, Sprite.ruin4a, 'decay3'),
+        (1, Sprite.ruin4b, 'decay3'),
+        (1, Sprite.ruin4c, 'decay3'),
+        (1, Sprite.ruin4d, 'decay3'),
+        (5, Sprite.ruin3a, 'decay2'),
+        (5, Sprite.ruin3b, 'decay2'),
+        (3, Sprite.ruin2, 'decay1'),
+        (10, Sprite.ruin1e, 'decay0'),
     ),
-    name='rubble',
+    name='ruin',
 )
 
 

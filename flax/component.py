@@ -541,7 +541,8 @@ class Breakable(Component, interface=ICombatant):
         # for entities that also support some other interface?
         self.strength = 0
 
-
+    def __init__(self, health_fraction):
+        self.current_health = health_fraction * self.maximum_health
 
 
 # -----------------------------------------------------------------------------

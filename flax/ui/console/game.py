@@ -26,7 +26,8 @@ PALETTE = [
     ('health-full-empty', 'dark green', 'default', None, '#060', 'default'),
 
     # Architecture
-    ('floor', 'black', 'default', None, '#666', 'default'),
+    ('wall', 'light gray', 'default', None, 'g70', 'default'),
+    ('floor', 'black', 'default', None, 'g20', 'default'),
     ('stairs', 'white', 'dark gray', None, '#aaa', 'g19'),
     ('grass', 'dark green', 'default', None, '#060', 'default'),
     ('tree', 'dark green', 'default', None, '#080', 'default'),

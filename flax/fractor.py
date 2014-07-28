@@ -1,7 +1,7 @@
 import math
 import random
 
-from flax.component import IPhysics, Empty
+from flax.component import Breakable, IPhysics, Empty
 import flax.entity as e
 from flax.entity import Entity, CaveWall, Wall, Floor, Tree, Grass, CutGrass, Dirt, Player, Salamango, Armor, Potion, StairsDown, StairsUp
 from flax.geometry import Point, Rectangle, Size
@@ -320,29 +320,15 @@ class RuinFractor(Fractor):
             # something that could be updated on the fly
             if self.map_canvas._arch_grid[point] is Wall:
                 n = noise(*point)
-                if n < 0.2:
-                    arch = e.DecayWall0
-                elif n < 0.4:
-                    arch = e.DecayWall1
-                elif n < 0.6:
-                    arch = e.DecayWall2
-                elif n < 0.8:
-                    arch = e.DecayWall3
+                if n < 0.7:
+                    arch = e.Ruin(Breakable(n / 0.7))
                 else:
                     arch = e.Wall
                 self.map_canvas.set_architecture(point, arch)
             elif self.map_canvas._arch_grid[point] is Floor:
                 n = noise(*point)
-                if n < 0.1:
-                    arch = e.DecayFloor0
-                elif n < 0.2:
-                    arch = e.DecayFloor1
-                elif n < 0.3:
-                    arch = e.DecayFloor2
-                elif n < 0.31:
-                    arch = e.Rubble
+                if n < 0.5:
+                    arch = e.Rubble(Breakable(n / 0.5))
                 else:
                     arch = e.Floor
                 self.map_canvas.set_architecture(point, arch)
-
-
