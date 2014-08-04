@@ -241,6 +241,10 @@ class Sprite(Enum):
     player = '☻'
     lizard = ':'
 
+    # potential others:
+    # ⇭ gravestone
+    # ⇶ ammo
+
 
 class Material(Enum): pass
 

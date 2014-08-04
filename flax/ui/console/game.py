@@ -26,7 +26,7 @@ PALETTE = [
     ('health-full-empty', 'dark green', 'default', None, '#060', 'default'),
 
     # Architecture
-    ('wall', 'light gray', 'default', None, 'g70', 'default'),
+    ('wall', 'light gray', 'default', None, 'g70', 'g70'),
     ('floor', 'black', 'default', None, 'g20', 'default'),
     ('stairs', 'white', 'dark gray', None, '#aaa', 'g19'),
     ('grass', 'dark green', 'default', None, '#060', 'default'),
@@ -339,9 +339,10 @@ class InventoryItem(urwid.WidgetWrap):
 
     def __init__(self, item):
         self.item = item
-        glyph, attr = item.type.tmp_rendering
+        render = IRender(item)
+        glyph, attr = render.sprite, render.color
         widget = urwid.Text([
-            (attr, glyph),
+            (attr, glyph.value),
             ' ',
             item.type.name,
         ])
