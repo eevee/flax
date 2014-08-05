@@ -1,10 +1,11 @@
+from collections import deque
 import math
 import random
 
 from flax.component import Breakable, IPhysics, Empty
 import flax.entity as e
 from flax.entity import Entity, CaveWall, Wall, Floor, Tree, Grass, CutGrass, Dirt, Player, Salamango, Armor, Potion, StairsDown, StairsUp
-from flax.geometry import Point, Rectangle, Size
+from flax.geometry import Direction, Point, Rectangle, Size
 from flax.map import Map
 from flax.noise import discrete_perlin_noise_factory
 
@@ -288,20 +289,108 @@ class BinaryPartitionFractor(Fractor):
 class PerlinFractor(Fractor):
     def generate(self):
         # TODO not guaranteed that all the walkable spaces are attached
-        noise = discrete_perlin_noise_factory(*self.region.size, resolution=4, octaves=2)
-        for point in self.region.iter_points():
-            n = noise(*point)
-            if n < 0.2:
-                arch = Floor
-            elif n < 0.4:
-                arch = Dirt
-            elif n < 0.6:
+        noise_factory = discrete_perlin_noise_factory(*self.region.size, resolution=5, octaves=1)
+        noise = {point: noise_factory(*point) for point in self.region.iter_points()}
+        low_points = set()
+        for point, n in noise.items():
+            if n < 0.3:
+                low_points.add(point)
                 arch = CutGrass
-            elif n < 0.8:
+            elif n < 0.6:
                 arch = Grass
             else:
                 arch = Tree
             self.map_canvas.set_architecture(point, arch)
+
+        not_low_points = set()
+        local_minima = set()
+        for point in sorted(low_points, key=lambda pt: noise[pt]):
+            n = noise[point]
+            if any(noise[npt] < n for npt in point.neighbors if npt in low_points):
+                continue
+            local_minima.add(point)
+
+        # TODO consider adding local cutgrass minima along the edges too?
+        for point in local_minima:
+            self.map_canvas.set_architecture(point, e.Dirt)
+
+        ### A STAR, WOO
+        # TODO need to figure out which points should join to which!  need a...
+        # minimum number of paths?  some kind of spanning tree that's
+        # minimal...
+        # TODO technically there might only be one local minima
+        start, goal = list(local_minima)[0:2]
+        seen = set()
+        pending = [start]  # TODO actually a sorted set heap thing
+        paths = {}
+
+        def estimate_cost(start, goal):
+            dx, dy = goal - start
+            dx = abs(dx)
+            dy = abs(dy)
+            return max(dx, dy) * min(noise[start], noise[goal])
+
+        g_score = {start: 0}
+        f_score = {start: estimate_cost(start, goal)}
+
+        while pending:
+            pending.sort(key=f_score.__getitem__)
+            current = pending.pop(0)
+            if current == goal:
+                # CONSTRUCT PATH HERE
+                break
+
+            seen.add(current)
+            for npt in current.neighbors:
+                if npt not in self.region or npt in seen:
+                    continue
+                tentative_score = g_score[current] + noise[npt]
+
+                if npt not in pending or tentative_score < g_score[npt]:
+                    paths[npt] = current
+                    g_score[npt] = tentative_score
+                    f_score[npt] = tentative_score + estimate_cost(npt, goal)
+                    pending.append(npt)
+
+        final_path = []
+        while current in paths:
+            final_path.append(current)
+            current = paths[current]
+        final_path.reverse()
+        ### END A STAR
+
+
+        for point in final_path:
+            self.map_canvas.set_architecture(point, e.Dirt)
+
+
+
+        lowest_point = list(local_minima)[0]
+        traversed = {lowest_point}
+        last_point = lowest_point
+        for n in range(0):
+            last_n = 1
+            next_point = None
+            for dir_ in Direction:
+                point = last_point + dir_
+                if point in traversed:
+                    continue
+                if point not in self.region:
+                    continue
+                if noise[point] > last_n:
+                    continue
+                if any(pt != last_point and pt in traversed for pt in point.neighbors):
+                    continue
+
+                next_point = point
+                last_n = noise[point]
+
+            if next_point is None:
+                break
+
+            self.map_canvas.set_architecture(next_point, e.Dirt)
+            traversed.add(next_point)
+            last_point = next_point
 
 
 class RuinFractor(Fractor):

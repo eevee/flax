@@ -226,7 +226,8 @@ class Sprite(Enum):
     throne = '♄'
 
     tree = '⯭'
-    neat_grass = 'ʬ'
+    grass = '⁖'
+    tall_grass = 'ʬ'
 
     flask = 'ð'
     gem = '♦'
@@ -293,12 +294,12 @@ Tree = Architecture(
 )
 Grass = Architecture(
     Empty,
-    Render(sprite=Sprite.neat_grass, color='grass'),
+    Render(sprite=Sprite.tall_grass, color='grass'),
     name='grass',
 )
 CutGrass = Architecture(
     Empty,
-    Render(sprite=Sprite.speckle, color='grass'),
+    Render(sprite=Sprite.grass, color='grass'),
     name='freshly-cut grass',
 )
 Dirt = Architecture(

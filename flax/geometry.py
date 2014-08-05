@@ -6,6 +6,10 @@ class Direction(Enum):
     down = (0, 1)
     left = (-1, 0)
     right = (1, 0)
+    up_right = (1, -1)
+    down_right = (1, 1)
+    down_left = (-1, 1)
+    up_left = (-1, -1)
 
 
 class Point(tuple):
@@ -23,6 +27,11 @@ class Point(tuple):
     @property
     def y(self):
         return self[1]
+
+    @property
+    def neighbors(self):
+        for d in Direction:
+            yield self + d
 
     def __add__(self, other):
         if isinstance(other, Direction):

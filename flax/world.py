@@ -20,6 +20,7 @@ class FloorPlan:
         # of the dungeon with X floors) and then tell the fractors to conform
         # to that?
         # TODO maybe maps should just know their own names
+        # TODO check that all maps are connected?
         self.maps = {}
         self.maps['map0'] = PerlinFractor(Size(80, 24)).generate_map(down='map1')
         self.maps['map1'] = BinaryPartitionFractor(Size(80, 24), minimum_size=Size(10, 8)).generate_map(up='map0')
@@ -72,7 +73,7 @@ class World:
         self.event_queue = deque()
 
         self.floor_plan = FloorPlan(self.player)
-        self.change_map('ruin')  # TODO seems hardcodey to put this here
+        self.change_map('map0')  # TODO seems hardcodey to put this here
 
     @property
     def current_map(self):
