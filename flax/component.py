@@ -506,15 +506,15 @@ class Combatant(Component, interface=ICombatant):
     # of constructor arguments that are used to compute an attribute but not
     # stored anywhere
 
-    def lose_health(self, amount):
-        self.current_health -= amount
+    def lose_health(self, event):
+        self.current_health -= event.amount
 
         if self.current_health <= 0:
             event.world.queue_immediate_event(Die(self.entity))
 
     @handler(Damage)
     def handle_damage(self, event):
-        self.lose_health(event.amount)
+        self.lose_health(event)
 
     @handler(MeleeAttack)
     def handle_attack(self, event):
