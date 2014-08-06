@@ -1,3 +1,4 @@
+from collections import defaultdict
 from collections import deque
 import math
 import random
@@ -287,6 +288,51 @@ class BinaryPartitionFractor(Fractor):
 
 
 class PerlinFractor(Fractor):
+    def _a_star(self, start, goals, costs):
+        assert goals
+        # TODO need to figure out which points should join to which!  need a...
+        # minimum number of paths?  some kind of spanning tree that's
+        # minimal...
+        # TODO technically there might only be one local minima
+        seen = set()
+        pending = [start]  # TODO actually a sorted set heap thing
+        paths = {}
+
+        def estimate_cost(start, goal):
+            dx, dy = goal - start
+            dx = abs(dx)
+            dy = abs(dy)
+            return max(dx, dy) * min(costs[start], costs[goal])
+
+        g_score = {start: 0}
+        f_score = {start: min(estimate_cost(start, goal) for goal in goals)}
+
+        while pending:
+            pending.sort(key=f_score.__getitem__)
+            current = pending.pop(0)
+            if current in goals:
+                # CONSTRUCT PATH HERE
+                break
+
+            seen.add(current)
+            for npt in current.neighbors:
+                if npt not in self.region or npt in seen:
+                    continue
+                tentative_score = g_score[current] + costs[npt]
+
+                if npt not in pending or tentative_score < g_score[npt]:
+                    paths[npt] = current
+                    g_score[npt] = tentative_score
+                    f_score[npt] = tentative_score + min(estimate_cost(npt, goal) for goal in goals)
+                    pending.append(npt)
+
+        final_path = []
+        while current in paths:
+            final_path.append(current)
+            current = paths[current]
+        final_path.reverse()
+        return final_path
+
     def generate(self):
         # TODO not guaranteed that all the walkable spaces are attached
         noise_factory = discrete_perlin_noise_factory(*self.region.size, resolution=5, octaves=1)
@@ -314,83 +360,58 @@ class PerlinFractor(Fractor):
         for point in local_minima:
             self.map_canvas.set_architecture(point, e.Dirt)
 
-        ### A STAR, WOO
-        # TODO need to figure out which points should join to which!  need a...
-        # minimum number of paths?  some kind of spanning tree that's
-        # minimal...
-        # TODO technically there might only be one local minima
-        start, goal = list(local_minima)[0:2]
-        seen = set()
-        pending = [start]  # TODO actually a sorted set heap thing
-        paths = {}
-
-        def estimate_cost(start, goal):
-            dx, dy = goal - start
-            dx = abs(dx)
-            dy = abs(dy)
-            return max(dx, dy) * min(noise[start], noise[goal])
-
-        g_score = {start: 0}
-        f_score = {start: estimate_cost(start, goal)}
-
+        # Flood the forest.
+        floodzones = dict(zip(local_minima, range(len(local_minima))))
+        zone_map = {z: z for z in floodzones.values()}
+        pending = defaultdict(set)
+        paths = defaultdict(dict)
+        for point, zone in floodzones.items():
+            for neighbor in point.neighbors:
+                if neighbor not in noise:
+                    continue
+                pending[neighbor].add(zone)
+                if zone not in paths[neighbor] or noise[paths[neighbor][zone]] > noise[point]:
+                    paths[neighbor][zone] = point
         while pending:
-            pending.sort(key=f_score.__getitem__)
-            current = pending.pop(0)
-            if current == goal:
-                # CONSTRUCT PATH HERE
-                break
+            point = min(pending, key=noise.__getitem__)
+            zones = pending.pop(point)
+            zones = {zone_map[z] for z in zones}
+            if len(zones) > 1:
+                # Gasp!  A connection!
+                if point in paths:
+                    # Gasp!  A connection!
+                    print("connecting!", zones)
+                    print("->", paths[point])
+                    for zone, pt in paths[point].items():
+                        while pt:
+                            self.map_canvas.set_architecture(pt, e.Dirt)
+                            # TODO ugly.  should never have multiple branches
+                            # though.  maybe?
+                            pt = paths[pt].get(zone)
+                # TODO this is kinda gnarly just to do some remappings
+                canon_zone = min(zones)
+                zones.remove(canon_zone)
+                canon_zone = zone_map.get(canon_zone, canon_zone)
+                for from_zone, to_zone in zone_map.items():
+                    if from_zone in zones or to_zone in zones:
+                        zone_map[from_zone] = canon_zone
+                print(zone_map)
+            else:
+                canon_zone, = zones
+            floodzones[point] = canon_zone
 
-            seen.add(current)
-            for npt in current.neighbors:
-                if npt not in self.region or npt in seen:
+            for neighbor in point.neighbors:
+                if neighbor not in noise:
                     continue
-                tentative_score = g_score[current] + noise[npt]
-
-                if npt not in pending or tentative_score < g_score[npt]:
-                    paths[npt] = current
-                    g_score[npt] = tentative_score
-                    f_score[npt] = tentative_score + estimate_cost(npt, goal)
-                    pending.append(npt)
-
-        final_path = []
-        while current in paths:
-            final_path.append(current)
-            current = paths[current]
-        final_path.reverse()
-        ### END A STAR
-
-
-        for point in final_path:
-            self.map_canvas.set_architecture(point, e.Dirt)
-
-
-
-        lowest_point = list(local_minima)[0]
-        traversed = {lowest_point}
-        last_point = lowest_point
-        for n in range(0):
-            last_n = 1
-            next_point = None
-            for dir_ in Direction:
-                point = last_point + dir_
-                if point in traversed:
+                if neighbor in floodzones:
                     continue
-                if point not in self.region:
-                    continue
-                if noise[point] > last_n:
-                    continue
-                if any(pt != last_point and pt in traversed for pt in point.neighbors):
-                    continue
+                pending[neighbor].add(canon_zone)
+                if zone not in paths[neighbor] or noise[paths[neighbor][zone]] > noise[point]:
+                    paths[neighbor][zone] = point
 
-                next_point = point
-                last_n = noise[point]
 
-            if next_point is None:
-                break
 
-            self.map_canvas.set_architecture(next_point, e.Dirt)
-            traversed.add(next_point)
-            last_point = next_point
+
 
 
 class RuinFractor(Fractor):

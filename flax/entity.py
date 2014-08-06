@@ -245,6 +245,7 @@ class Sprite(Enum):
     # potential others:
     # ⇭ gravestone
     # ⇶ ammo
+    # ⤊ cabin?  uggh too wide barely
 
 
 class Material(Enum): pass

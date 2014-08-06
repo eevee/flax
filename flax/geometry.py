@@ -3,13 +3,21 @@ from enum import Enum
 
 class Direction(Enum):
     up = (0, -1)
-    down = (0, 1)
-    left = (-1, 0)
-    right = (1, 0)
     up_right = (1, -1)
+    right = (1, 0)
     down_right = (1, 1)
+    down = (0, 1)
     down_left = (-1, 1)
+    left = (-1, 0)
     up_left = (-1, -1)
+
+    def adjacent_to(self, other):
+        return (
+            (self.value[0] == other.value[0] and
+                abs(self.value[1] - other.value[1]) <= 1) or
+            (self.value[1] == other.value[1] and
+                abs(self.value[0] - other.value[0]) <= 1)
+        )
 
 
 class Point(tuple):
