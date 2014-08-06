@@ -348,7 +348,6 @@ class PerlinFractor(Fractor):
                 arch = Tree
             self.map_canvas.set_architecture(point, arch)
 
-        not_low_points = set()
         local_minima = set()
         for point in sorted(low_points, key=lambda pt: noise[pt]):
             n = noise[point]
@@ -356,7 +355,19 @@ class PerlinFractor(Fractor):
                 continue
             local_minima.add(point)
 
-        # TODO consider adding local cutgrass minima along the edges too?
+        for x in self.region.range_width():
+            for y in (self.region.top, self.region.bottom):
+                point = Point(x, y)
+                n = noise[point]
+                if n < noise.get(Point(x - 1, y), 1) and n < noise.get(Point(x + 1, y), 1):
+                    local_minima.add(point)
+        for y in self.region.range_height():
+            for x in (self.region.left, self.region.right):
+                point = Point(x, y)
+                n = noise[point]
+                if n < noise.get(Point(x, y - 1), 1) and n < noise.get(Point(x, y + 1), 1):
+                    local_minima.add(point)
+
         for point in local_minima:
             self.map_canvas.set_architecture(point, e.Dirt)
 
@@ -378,24 +389,30 @@ class PerlinFractor(Fractor):
             zones = {zone_map[z] for z in zones}
             if len(zones) > 1:
                 # Gasp!  A connection!
-                if point in paths:
-                    # Gasp!  A connection!
-                    print("connecting!", zones)
-                    print("->", paths[point])
-                    for zone, pt in paths[point].items():
-                        while pt:
-                            self.map_canvas.set_architecture(pt, e.Dirt)
-                            # TODO ugly.  should never have multiple branches
-                            # though.  maybe?
-                            pt = paths[pt].get(zone)
-                # TODO this is kinda gnarly just to do some remappings
+                self.map_canvas.set_architecture(point, e.Dirt)
+                for zone, pt in paths[point].items():
+                    if zone not in zones:
+                        continue
+                    # TODO it seems this can cause infinite loops,
+                    # exacerbated by having more points
+                    while pt:
+                        self.map_canvas.set_architecture(pt, e.Dirt)
+                        # TODO ugly.  should never have multiple branches
+                        # though.  maybe?
+                        pt = paths[pt].get(zone)
                 canon_zone = min(zones)
                 zones.remove(canon_zone)
-                canon_zone = zone_map.get(canon_zone, canon_zone)
                 for from_zone, to_zone in zone_map.items():
                     if from_zone in zones or to_zone in zones:
                         zone_map[from_zone] = canon_zone
-                print(zone_map)
+                # UGH need to rewrite paths in its entirety
+                for pt, zonepoints in paths.items():
+                    new_zonepoints = {}
+                    for orig_zone, pt2 in zonepoints.items():
+                        new_zone = zone_map[orig_zone]
+                        if new_zone not in new_zonepoints or noise[new_zonepoints[new_zone]] > noise[pt2]:
+                            new_zonepoints[new_zone] = pt2
+                    paths[pt] = new_zonepoints
             else:
                 canon_zone, = zones
             floodzones[point] = canon_zone
@@ -406,12 +423,8 @@ class PerlinFractor(Fractor):
                 if neighbor in floodzones:
                     continue
                 pending[neighbor].add(canon_zone)
-                if zone not in paths[neighbor] or noise[paths[neighbor][zone]] > noise[point]:
-                    paths[neighbor][zone] = point
-
-
-
-
+                if canon_zone not in paths[neighbor] or noise[paths[neighbor][canon_zone]] > noise[point]:
+                    paths[neighbor][canon_zone] = point
 
 
 class RuinFractor(Fractor):
