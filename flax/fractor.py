@@ -372,35 +372,32 @@ class PerlinFractor(Fractor):
             self.map_canvas.set_architecture(point, e.Dirt)
 
         # Flood the forest.
-        floodzones = dict(zip(local_minima, range(len(local_minima))))
-        zone_map = {z: z for z in floodzones.values()}
-        pending = defaultdict(set)
+        flooded = set(local_minima)
+        zone_map = {}
+        pending = set()
         paths = defaultdict(dict)
-        for point, zone in floodzones.items():
+        for zone, point in enumerate(flooded):
+            zone_map[zone] = zone
             for neighbor in point.neighbors:
                 if neighbor not in noise:
                     continue
-                if neighbor in floodzones:
+                if neighbor in flooded:
                     continue
-                pending[neighbor].add(zone)
+                pending.add(neighbor)
                 if zone not in paths[neighbor] or noise[paths[neighbor][zone]] > noise[point]:
                     paths[neighbor][zone] = point
         while pending:
             point = min(pending, key=noise.__getitem__)
-            zones = pending.pop(point)
-            zones = {zone_map[z] for z in zones}
-            if len(zones) > 1:
+            pending.remove(point)
+            zones = set(paths[point])
+            if len(zones) == 1:
+                canon_zone, = zones
+            else:
                 # Gasp!  A connection!
                 self.map_canvas.set_architecture(point, e.Dirt)
                 for zone, pt in paths[point].items():
-                    if zone not in zones:
-                        continue
-                    # TODO it seems this can cause infinite loops,
-                    # exacerbated by having more points
                     while pt:
                         self.map_canvas.set_architecture(pt, e.Dirt)
-                        # TODO ugly.  should never have multiple branches
-                        # though.  maybe?
                         pt = paths[pt].get(zone)
                 canon_zone = min(zones)
                 zones.remove(canon_zone)
@@ -415,16 +412,14 @@ class PerlinFractor(Fractor):
                         if new_zone not in new_zonepoints or noise[new_zonepoints[new_zone]] > noise[pt2]:
                             new_zonepoints[new_zone] = pt2
                     paths[pt] = new_zonepoints
-            else:
-                canon_zone, = zones
-            floodzones[point] = canon_zone
+            flooded.add(point)
 
             for neighbor in point.neighbors:
                 if neighbor not in noise:
                     continue
-                if neighbor in floodzones:
+                if neighbor in flooded:
                     continue
-                pending[neighbor].add(canon_zone)
+                pending.add(neighbor)
                 if canon_zone not in paths[neighbor] or noise[paths[neighbor][canon_zone]] > noise[point]:
                     paths[neighbor][canon_zone] = point
 
