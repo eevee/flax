@@ -380,6 +380,8 @@ class PerlinFractor(Fractor):
             for neighbor in point.neighbors:
                 if neighbor not in noise:
                     continue
+                if neighbor in floodzones:
+                    continue
                 pending[neighbor].add(zone)
                 if zone not in paths[neighbor] or noise[paths[neighbor][zone]] > noise[point]:
                     paths[neighbor][zone] = point
