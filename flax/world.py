@@ -22,7 +22,7 @@ class FloorPlan:
         # TODO maybe maps should just know their own names
         # TODO check that all maps are connected?
         self.maps = {}
-        self.maps['map0'] = PerlinFractor(Size(80, 24)).generate_map(down='map1')
+        self.maps['map0'] = PerlinFractor(Size(120, 30)).generate_map(down='map1')
         self.maps['map1'] = BinaryPartitionFractor(Size(80, 24), minimum_size=Size(10, 8)).generate_map(up='map0')
         self.current_map_name = None
         self.current_map = None

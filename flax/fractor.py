@@ -333,9 +333,26 @@ class PerlinFractor(Fractor):
         final_path.reverse()
         return final_path
 
+    def _generate_river(self):
+        # TODO seriously starting to feel like i need a Feature type for these
+        # things?
+
+        center_factory = discrete_perlin_noise_factory(self.region.height, resolution=3)
+        width_factory = discrete_perlin_noise_factory(self.region.height, resolution=6, octaves=2)
+        center0 = self.region.left + self.region.width / 2
+        center = center0
+        for y in self.region.range_height():
+            center += (center_factory(y) - 0.5) * 3
+            width = width_factory(y) * 2 + 5
+            x0 = int(center - width / 2)
+            x1 = int(x0 + width + 0.5)
+            for x in range(x0, x1):
+                self.map_canvas.set_architecture(Point(x, y), e.Water)
+
+
     def generate(self):
         # TODO not guaranteed that all the walkable spaces are attached
-        noise_factory = discrete_perlin_noise_factory(*self.region.size, resolution=5, octaves=1)
+        noise_factory = discrete_perlin_noise_factory(*self.region.size, resolution=6, octaves=1)
         noise = {point: noise_factory(*point) for point in self.region.iter_points()}
         low_points = set()
         for point, n in noise.items():
@@ -347,6 +364,8 @@ class PerlinFractor(Fractor):
             else:
                 arch = Tree
             self.map_canvas.set_architecture(point, arch)
+
+        self._generate_river()
 
         local_minima = set()
         for point in sorted(low_points, key=lambda pt: noise[pt]):

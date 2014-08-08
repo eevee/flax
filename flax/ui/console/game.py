@@ -28,6 +28,7 @@ PALETTE = [
     # Architecture
     ('wall', 'light gray', 'default', None, 'g70', 'g70'),
     ('floor', 'black', 'default', None, 'g20', 'default'),
+    ('water', 'light blue', 'dark blue', None, '#06f', '#008'),
     ('stairs', 'white', 'dark gray', None, '#aaa', 'g19'),
     ('grass', 'dark green', 'default', None, '#060', 'default'),
     ('tree', 'dark green', 'default', None, '#080', 'default'),
@@ -397,10 +398,9 @@ class FlaxWidget(urwid.WidgetWrap):
         main_widget = urwid.Pile([
             urwid.Columns([
                 CellWidget(world),
-                self.status_widget,
-                (0, urwid.SolidFill('x')),
+                (20, self.status_widget),
             ]),
-            self.debug_widget,
+            (10, self.debug_widget),
         ])
 
         self.overlay = ToggleableOverlay(main_widget)
