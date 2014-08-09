@@ -333,14 +333,16 @@ class PerlinFractor(Fractor):
         final_path.reverse()
         return final_path
 
-    def _generate_river(self):
+    def _generate_river(self, noise):
         # TODO seriously starting to feel like i need a Feature type for these
-        # things?
+        # things?  like, passing `noise` around is a really weird way to go
+        # about this.  what would the state even look like though?
 
         center_factory = discrete_perlin_noise_factory(self.region.height, resolution=3)
         width_factory = discrete_perlin_noise_factory(self.region.height, resolution=6, octaves=2)
         center0 = self.region.left + self.region.width / 2
         center = center0
+        crossable_spans = set()
         for y in self.region.range_height():
             center += (center_factory(y) - 0.5) * 3
             width = width_factory(y) * 2 + 5
@@ -349,9 +351,19 @@ class PerlinFractor(Fractor):
             for x in range(x0, x1):
                 self.map_canvas.set_architecture(Point(x, y), e.Water)
 
+            # XXX hardcoding the test from below...
+            if noise[Point(x0 - 1, y)] < 0.6 and noise[Point(x1 + 1, y)] < 0.6:
+                crossable_spans.add(y)
+
+                if random.random() < 0.3:
+                    for x in range(x0, x1 + 1):
+                        self.map_canvas.set_architecture(Point(x, y), e.Bridge)
+
+
+
 
     def generate(self):
-        # TODO not guaranteed that all the walkable spaces are attached
+        # TODO not guaranteed that all the Grass spaces are connected
         noise_factory = discrete_perlin_noise_factory(*self.region.size, resolution=6, octaves=1)
         noise = {point: noise_factory(*point) for point in self.region.iter_points()}
         low_points = set()
@@ -365,7 +377,7 @@ class PerlinFractor(Fractor):
                 arch = Tree
             self.map_canvas.set_architecture(point, arch)
 
-        self._generate_river()
+        self._generate_river(noise)
 
         local_minima = set()
         for point in sorted(low_points, key=lambda pt: noise[pt]):

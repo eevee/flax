@@ -197,6 +197,7 @@ class Sprite(Enum):
     fill = '█'
     floor = '·'
     water = '⧛'
+    bridge = '⬛'
     speckle = '░'
     pillar = '♊'
     fence = '⌗'
@@ -288,6 +289,11 @@ Water = Architecture(
     Solid,
     Render(sprite=Sprite.water, color='water'),
     name='water',
+)
+Bridge = Architecture(
+    Empty,
+    Render(sprite=Sprite.bridge, color='bridge'),
+    name='bridge',
 )
 Floor = Architecture(
     Empty,
