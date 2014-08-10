@@ -26,7 +26,9 @@ class Map:
 
     @player.setter
     def player(self, value):
-        assert self._player is None, "trying to set player when we've already got one! {} {}".format(id(self._player), id(value))
+        assert self._player is None, (
+            "trying to set player when we've already got one! {} {}".format(
+                id(self._player), id(value)))
         self._player = value
 
     @player.deleter
@@ -85,8 +87,8 @@ class Tile:
         self.position = position
         # TODO would like architecture to default to something (probably
         # CaveWall) so a freshly-created Tile is cromulent, without having to
-        # create a new entity on every Tile just to have it overwritten a moment
-        # later
+        # create a new entity on every Tile just to have it overwritten a
+        # moment later
         self.architecture = None
         self.creature = None
         self.items = []

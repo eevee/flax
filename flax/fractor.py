@@ -1,12 +1,14 @@
 from collections import defaultdict
-from collections import deque
 import math
 import random
 
 from flax.component import Breakable, IPhysics, Empty
 import flax.entity as e
-from flax.entity import Entity, CaveWall, Wall, Floor, Tree, Grass, CutGrass, Dirt, Player, Salamango, Armor, Potion, StairsDown, StairsUp
-from flax.geometry import Direction, Point, Rectangle, Size
+from flax.entity import (
+    Entity, CaveWall, Wall, Floor, Tree, Grass, CutGrass, Salamango, Armor,
+    Potion, StairsDown, StairsUp
+)
+from flax.geometry import Point, Rectangle, Size
 from flax.map import Map
 from flax.noise import discrete_perlin_noise_factory
 
@@ -55,9 +57,11 @@ class MapCanvas:
 
         # TODO i think using types instead of entities /most of the time/ is
         # more trouble than it's worth
-        self._arch_grid = {point: CaveWall for point in self.rect.iter_points()}
+        self._arch_grid = {
+            point: CaveWall for point in self.rect.iter_points()}
         self._item_grid = {point: [] for point in self.rect.iter_points()}
-        self._creature_grid = {point: None for point in self.rect.iter_points()}
+        self._creature_grid = {
+            point: None for point in self.rect.iter_points()}
 
         self.floor_spaces = set()
 
@@ -87,7 +91,7 @@ class MapCanvas:
         self._item_grid[point].append(entity_type)
 
     def set_creature(self, point, entity_type):
-        #assert entity_type.layer is Layer.creature
+        # assert entity_type.layer is Layer.creature
         self._creature_grid[point] = entity_type
 
     def maybe_create(self, type_or_thing):
@@ -143,7 +147,6 @@ class Room:
             canvas.set_architecture(Point(self.rect.right, y), Wall)
 
 
-
 class Fractor:
     """The agent noun form of 'fractal'.  An object that generates maps in a
     particular style.
@@ -186,7 +189,8 @@ class Fractor:
     def place_stuff(self):
         # TODO this probably varies by room style too, but we don't have a huge
         # variety yet of stuff to generate yet, so.
-        assert self.map_canvas.floor_spaces, "can't place player with no open spaces"
+        assert self.map_canvas.floor_spaces, \
+            "can't place player with no open spaces"
         points = random.sample(list(self.map_canvas.floor_spaces), 10)
         self.map_canvas.set_creature(points[0], Salamango)
         self.map_canvas.add_item(points[1], Armor)
@@ -200,7 +204,8 @@ class Fractor:
         portal = portal_type(Portal(destination=destination))
 
         # TODO not guaranteed
-        assert self.map_canvas.floor_spaces, "can't place portal with no open spaces"
+        assert self.map_canvas.floor_spaces, \
+            "can't place portal with no open spaces"
         point = random.choice(list(self.map_canvas.floor_spaces))
         self.map_canvas.set_architecture(point, portal)
 
@@ -226,7 +231,8 @@ class BinaryPartitionFractor(Fractor):
         # TODO this should preserve the tree somehow, so a hallway can be drawn
         # along the edges
         regions = [self.region]
-        # TODO configurable?  with fewer, could draw bigger interesting things in the big spaces
+        # TODO configurable?  with fewer, could draw bigger interesting things
+        # in the big spaces
         wanted = 7
 
         while regions and len(regions) < wanted:
@@ -240,8 +246,6 @@ class BinaryPartitionFractor(Fractor):
         return regions
 
     def partition(self, region):
-        possible_directions = []
-
         # Partition whichever direction has more available space
         rel_height = region.height / self.minimum_size.height
         rel_width = region.width / self.minimum_size.width
@@ -323,7 +327,8 @@ class PerlinFractor(Fractor):
                 if npt not in pending or tentative_score < g_score[npt]:
                     paths[npt] = current
                     g_score[npt] = tentative_score
-                    f_score[npt] = tentative_score + min(estimate_cost(npt, goal) for goal in goals)
+                    f_score[npt] = tentative_score + min(
+                        estimate_cost(npt, goal) for goal in goals)
                     pending.append(npt)
 
         final_path = []
@@ -338,8 +343,10 @@ class PerlinFractor(Fractor):
         # things?  like, passing `noise` around is a really weird way to go
         # about this.  what would the state even look like though?
 
-        center_factory = discrete_perlin_noise_factory(self.region.height, resolution=3)
-        width_factory = discrete_perlin_noise_factory(self.region.height, resolution=6, octaves=2)
+        center_factory = discrete_perlin_noise_factory(
+            self.region.height, resolution=3)
+        width_factory = discrete_perlin_noise_factory(
+            self.region.height, resolution=6, octaves=2)
         center0 = self.region.left + self.region.width / 2
         center = center0
         crossable_spans = set()
@@ -359,13 +366,14 @@ class PerlinFractor(Fractor):
                     for x in range(x0, x1 + 1):
                         self.map_canvas.set_architecture(Point(x, y), e.Bridge)
 
-
-
-
     def generate(self):
         # TODO not guaranteed that all the Grass spaces are connected
-        noise_factory = discrete_perlin_noise_factory(*self.region.size, resolution=6, octaves=1)
-        noise = {point: noise_factory(*point) for point in self.region.iter_points()}
+        noise_factory = discrete_perlin_noise_factory(
+            *self.region.size, resolution=6)
+        noise = {
+            point: noise_factory(*point)
+            for point in self.region.iter_points()
+        }
         low_points = set()
         for point, n in noise.items():
             if n < 0.3:
@@ -463,7 +471,8 @@ class RuinFractor(Fractor):
         room = Room(self.region)
         room.draw_to_canvas(self.map_canvas)
 
-        noise = discrete_perlin_noise_factory(*self.region.size, resolution=5, octaves=4)
+        noise = discrete_perlin_noise_factory(
+            *self.region.size, resolution=5, octaves=4)
         for point in self.region.iter_points():
             # TODO would greatly prefer some architecture types that just have
             # a 'decay' property affecting their rendering, but that would

@@ -2,9 +2,6 @@ from collections import defaultdict
 from enum import Enum
 from functools import partial
 
-import zope.interface as zi
-
-from flax.component import IComponent
 from flax.component import ICombatant, Combatant
 from flax.component import Solid, Empty
 from flax.component import Container
@@ -250,7 +247,8 @@ class Sprite(Enum):
     # ⤊ cabin?  uggh too wide barely
 
 
-class Material(Enum): pass
+class Material(Enum):
+    pass
 
 
 ###############################################################################
@@ -377,10 +375,17 @@ Item = partial(EntityType, Portable, layer=Layer.item)
 Gem = Item(Render(sprite=Sprite.gem, color='default'), name='gemstone')
 
 # TODO implement a potion!
-#Potion = Item(UsablePotion, name='potion', tmp_rendering=('ð', 'default'))
-Potion = Item(Render(sprite=Sprite.flask, color='default'), name='potion')
+# Potion = Item(UsablePotion, name='potion', tmp_rendering=('ð', 'default'))
+Potion = Item(
+    Render(sprite=Sprite.flask, color='default'),
+    name='potion',
+)
 
-Crate = Item(Container, Render(sprite=Sprite.crate, color='wood'), name='crate')
+Crate = Item(
+    Container,
+    Render(sprite=Sprite.crate, color='wood'),
+    name='crate',
+)
 
 
 # TODO not quite sure where this goes.  should it be able to react to events

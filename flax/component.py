@@ -163,7 +163,7 @@ class ComponentMeta(type):
 
         # Prevent assigning to arbitrary attributes, and cut down on storage
         # space a bit
-        #attrs.setdefault('__slots__', ())
+        # attrs.setdefault('__slots__', ())
 
         return super().__new__(meta, name, bases, attrs)
 
@@ -237,7 +237,6 @@ class ComponentAttribute:
             return desc
 
         attr = desc.zope_attribute
-        data = self.entity.component_data
         try:
             value = self.entity[attr]
         except KeyError:
@@ -389,7 +388,9 @@ class HealthRender(Component, interface=IRender):
             self.choices.append((weight / total_weight, sprite, color))
 
     def current_rendering(self):
-        health = ICombatant(self.entity).current_health / ICombatant(self.entity).maximum_health
+        health = (
+            ICombatant(self.entity).current_health /
+            ICombatant(self.entity).maximum_health)
         for weight, sprite, color in self.choices:
             if health <= weight:
                 return sprite, color
@@ -488,7 +489,7 @@ class ICombatant(IComponent):
     """Implements an entity's ability to fight and take damage."""
     maximum_health = static_attribute("Entity's maximum possible health.")
     current_health = static_attribute("Current amount of health.")
-    strength = static_attribute("Generic placeholder stat while I figure stuff out.")
+    strength = static_attribute("Generic placeholder stat.")
 
 
 class Combatant(Component, interface=ICombatant):
@@ -518,10 +519,12 @@ class Combatant(Component, interface=ICombatant):
 
     @handler(MeleeAttack)
     def handle_attack(self, event):
-        print("{0} hits {1}".format(event.actor.type.name, self.entity.type.name))
+        print("{0} hits {1}".format(
+            event.actor.type.name, self.entity.type.name))
 
         opponent = ICombatant(event.actor)
-        event.world.queue_immediate_event(Damage(self.entity, opponent.strength))
+        event.world.queue_immediate_event(
+            Damage(self.entity, opponent.strength))
 
     @handler(Die)
     def handle_death(self, event):
@@ -608,13 +611,13 @@ class Portable(Component, interface=IPortable):
 class IBodied(IComponent):
     wearing = derived_attribute("")
 
+
 class Bodied(Component, interface=IBodied):
     wearing = RelationSubject(Wearing)
 
 
-
 class IEquipment(IComponent):
-    #worn_by?
+    # worn_by?
     modifiers = static_attribute("Stat modifiers granted by this equipment.")
 
 
@@ -658,6 +661,4 @@ class Equipment(Component, interface=IEquipment):
         else:
             print("you're not wearing the armor!")
 
-    #@handler(Damage, on=wearer)
-    #def handle_wearer_damage(self, event):
     pass

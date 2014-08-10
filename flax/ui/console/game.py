@@ -1,13 +1,10 @@
-
 from itertools import islice
-import sys
 
 import urwid
 
 from flax.component import IRender
 from flax.geometry import Rectangle
 from flax.geometry import Size
-from flax.world import World
 from .util import DebugWidget
 from .util import ToggleableOverlay
 
@@ -180,7 +177,7 @@ class CellWidget(urwid.Widget):
         # is added or removed around the map
         pad_left = - self.viewport.left
         pad_top = - self.viewport.top
-        pad_right  = (size.width - pad_left) - map_rect.width
+        pad_right = (size.width - pad_left) - map_rect.width
         pad_bottom = (size.height - pad_top) - map_rect.height
 
         # TODO it's unclear when you're near the edge of the map, which i hate.
