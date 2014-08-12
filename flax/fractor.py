@@ -1,3 +1,4 @@
+import bisect
 from collections import defaultdict
 import math
 import random
@@ -413,7 +414,7 @@ class PerlinFractor(Fractor):
         # Flood the forest.
         flooded = set(local_minima)
         zone_map = {}
-        pending = set()
+        pending = []
         paths = defaultdict(dict)
         for zone, point in enumerate(flooded):
             zone_map[zone] = zone
@@ -422,12 +423,13 @@ class PerlinFractor(Fractor):
                     continue
                 if neighbor in flooded:
                     continue
-                pending.add(neighbor)
+                pending.append((noise[neighbor], neighbor))
                 if zone not in paths[neighbor] or noise[paths[neighbor][zone]] > noise[point]:
                     paths[neighbor][zone] = point
+        pending.sort()
         while pending:
-            point = min(pending, key=noise.__getitem__)
-            pending.remove(point)
+            __noise, point = pending.pop(0)
+            flooded.add(point)
             zones = set(paths[point])
             if len(zones) == 1:
                 canon_zone, = zones
@@ -451,14 +453,20 @@ class PerlinFractor(Fractor):
                         if new_zone not in new_zonepoints or noise[new_zonepoints[new_zone]] > noise[pt2]:
                             new_zonepoints[new_zone] = pt2
                     paths[pt] = new_zonepoints
-            flooded.add(point)
 
             for neighbor in point.neighbors:
                 if neighbor not in noise:
                     continue
                 if neighbor in flooded:
                     continue
-                pending.add(neighbor)
+
+                # Store the noise as part of the pending list, so bisect can
+                # keep it in order
+                key = (noise[neighbor], neighbor)
+                i = bisect.bisect_left(pending, key)
+                if i >= len(pending) or pending[i] != key:
+                    pending.insert(i, key)
+
                 if canon_zone not in paths[neighbor] or noise[paths[neighbor][canon_zone]] > noise[point]:
                     paths[neighbor][canon_zone] = point
 
