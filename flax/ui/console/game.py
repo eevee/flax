@@ -26,7 +26,7 @@ PALETTE = [
     ('wall', 'light gray', 'default', None, 'g70', 'g70'),
     ('floor', 'black', 'default', None, 'g20', 'default'),
     ('water', 'light blue', 'dark blue', None, '#06f', '#008'),
-    ('bridge', 'brown', 'dark blue', None, '#666', '#006'),
+    ('bridge', 'brown', 'dark blue', None, 'g50', '#008'),
     ('stairs', 'white', 'dark gray', None, '#aaa', 'g19'),
     ('grass', 'dark green', 'default', None, '#060', 'default'),
     ('tree', 'dark green', 'default', None, '#080', 'default'),

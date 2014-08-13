@@ -344,6 +344,20 @@ class PerlinFractor(Fractor):
         # things?  like, passing `noise` around is a really weird way to go
         # about this.  what would the state even look like though?
 
+        # TODO i think this needs another flooding algorithm, which probably
+        # means it needs to be a lot simpler and faster...
+        noise_factory = discrete_perlin_noise_factory(
+            *self.region.size, resolution=1, octaves=2)
+
+        noise = {
+            point: abs(noise_factory(*point) - 0.5) * 2
+            for point in self.region.iter_points()
+        }
+        for point, n in noise.items():
+            if n < 0.1:
+                self.map_canvas.set_architecture(point, e.Water)
+        return
+
         center_factory = discrete_perlin_noise_factory(
             self.region.height, resolution=3)
         width_factory = discrete_perlin_noise_factory(
@@ -375,25 +389,21 @@ class PerlinFractor(Fractor):
             point: noise_factory(*point)
             for point in self.region.iter_points()
         }
-        low_points = set()
+        local_minima = set()
         for point, n in noise.items():
             if n < 0.3:
-                low_points.add(point)
                 arch = CutGrass
+
+                if all(noise[npt] >= n for npt in point.neighbors
+                        if npt in noise):
+                    local_minima.add(point)
             elif n < 0.6:
                 arch = Grass
             else:
                 arch = Tree
             self.map_canvas.set_architecture(point, arch)
 
-        self._generate_river(noise)
-
-        local_minima = set()
-        for point in sorted(low_points, key=lambda pt: noise[pt]):
-            n = noise[point]
-            if any(noise[npt] < n for npt in point.neighbors if npt in low_points):
-                continue
-            local_minima.add(point)
+        #self._generate_river(noise)
 
         for x in self.region.range_width():
             for y in (self.region.top, self.region.bottom):
@@ -469,6 +479,25 @@ class PerlinFractor(Fractor):
 
                 if canon_zone not in paths[neighbor] or noise[paths[neighbor][canon_zone]] > noise[point]:
                     paths[neighbor][canon_zone] = point
+
+
+        point = next(iter(local_minima))
+        self.map_canvas.set_architecture(point, e.Bridge)
+        area = set()
+        surrounding = {point}
+        while True:
+            neighbors = {npt for point in surrounding for npt in point.neighbors}
+            new_surrounding = (neighbors - area - surrounding) & noise.keys()
+            for point in new_surrounding:
+                if any(noise[point] < noise[npt] for npt in point.neighbors if npt in surrounding):
+                    print(point)
+                    self.map_canvas.set_architecture(point, e.Bridge)
+                    return
+                    break
+            area |= surrounding
+            surrounding = new_surrounding
+
+
 
 
 class RuinFractor(Fractor):

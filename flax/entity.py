@@ -194,7 +194,7 @@ class Sprite(Enum):
     fill = '█'
     floor = '·'
     water = '⧛'
-    bridge = '⬛'
+    bridge = '⬮'
     speckle = '░'
     pillar = '♊'
     fence = '⌗'
