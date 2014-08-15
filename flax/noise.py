@@ -81,7 +81,9 @@ def perlin_noise_factory(*resolution):
         dots = []
         for grid_point in product(*grid_coords):
             gradient = gradients[grid_point]
-            dot = sum(gradient[i] * (point[i] - grid_point[i]) for i in range(dimension))
+            dot = 0
+            for i in range(dimension):
+                dot += gradient[i] * (point[i] - grid_point[i])
             dots.append(dot)
 
         # Interpolate all those dot products together.  The interpolation is
@@ -158,10 +160,9 @@ def discrete_perlin_noise_factory(*dimensions, resolution, octaves=1):
             (coord + 0.5) / range_
             for (coord, range_) in zip(point, dimensions))
 
-        n = sum(
-            original(*scaled_point) / 2 ** o
-            for (o, original) in enumerate(original_noises)
-        )
+        n = 0
+        for o, original in enumerate(original_noises):
+            n += original(*scaled_point) / 2 ** o
 
         # Need to scale n back down since adding all those extra octaves has
         # probably expanded it beyond [0, 1]

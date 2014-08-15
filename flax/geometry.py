@@ -22,7 +22,7 @@ class Direction(Enum):
 
 class Point(tuple):
     def __new__(cls, x, y):
-        return super().__new__(cls, (x, y))
+        return tuple.__new__(cls, (x, y))
 
     @classmethod
     def origin(cls):
@@ -38,8 +38,7 @@ class Point(tuple):
 
     @property
     def neighbors(self):
-        for d in Direction:
-            yield self + d
+        return [self + d for d in Direction]
 
     def __add__(self, other):
         if isinstance(other, Direction):
