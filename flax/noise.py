@@ -7,7 +7,9 @@ def s_curve(t):
     """Smooth curve with a zero derivative at 0 and 1, making it useful for
     interpolating.
     """
-    return t * t * (3 - 2 * t)
+    t2 = t * t
+    t3 = t2 * t
+    return t3 * (6 * t2 - 15 * t + 10)
 
 
 def lerp(t, a, b):
@@ -40,8 +42,9 @@ def perlin_noise_factory(*resolution):
     # between all those points.  Perlin noise is just a generalization of that
     # to higher dimensions: but instead of random y-values for every integral
     # x, you have a random unit vector at every integral coordinate.
-    # The interpolation curve used here is 3t² - 2t³, as in the original
-    # implementation, but anything with a bias towards 0 and 1 works.
+    # I also tried implementing "improved" perlin noise, but I (deliberately)
+    # use a fairly small number of cells to generate simple geography, and the
+    # non-random gradients work horribly at that resolution.
 
     dimension = len(resolution)
 
