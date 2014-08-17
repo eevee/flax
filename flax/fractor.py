@@ -1,4 +1,3 @@
-import bisect
 from collections import defaultdict
 import math
 import random
@@ -382,7 +381,9 @@ class PerlinFractor(Fractor):
                         self.map_canvas.set_architecture(Point(x, y), e.Bridge)
 
     def generate(self):
-        # TODO not guaranteed that all the Grass spaces are connected
+        # This noise is interpreted roughly as the inverse of "frequently
+        # travelled" -- low values are walked often (and are thus short grass),
+        # high values are left alone (and thus are trees).
         noise_factory = discrete_perlin_noise_factory(
             *self.region.size, resolution=6)
         noise = {
@@ -391,113 +392,114 @@ class PerlinFractor(Fractor):
         }
         local_minima = set()
         for point, n in noise.items():
+            # We want to ensure that each "walkable region" is connected.
+            # First step is to collect all local minima -- any walkable tile is
+            # guaranteed to be conneted to one.
+            if all(noise[npt] >= n for npt in point.neighbors if npt in noise):
+                local_minima.add(point)
+
             if n < 0.3:
                 arch = CutGrass
-
-                if all(noise[npt] >= n for npt in point.neighbors
-                        if npt in noise):
-                    local_minima.add(point)
             elif n < 0.6:
                 arch = Grass
             else:
                 arch = Tree
             self.map_canvas.set_architecture(point, arch)
 
-        #self._generate_river(noise)
+        # self._generate_river(noise)
 
         for x in self.region.range_width():
             for y in (self.region.top, self.region.bottom):
                 point = Point(x, y)
                 n = noise[point]
-                if n < noise.get(Point(x - 1, y), 1) and n < noise.get(Point(x + 1, y), 1):
+                if (n < noise.get(Point(x - 1, y), 1) and
+                        n < noise.get(Point(x + 1, y), 1)):
                     local_minima.add(point)
         for y in self.region.range_height():
             for x in (self.region.left, self.region.right):
                 point = Point(x, y)
                 n = noise[point]
-                if n < noise.get(Point(x, y - 1), 1) and n < noise.get(Point(x, y + 1), 1):
+                if (n < noise.get(Point(x, y - 1), 1) and
+                        n < noise.get(Point(x, y + 1), 1)):
                     local_minima.add(point)
 
         for point in local_minima:
             self.map_canvas.set_architecture(point, e.Dirt)
 
-        # Flood the forest.
-        flooded = set(local_minima)
-        zone_map = {}
-        pending = []
-        paths = defaultdict(dict)
-        for zone, point in enumerate(flooded):
-            zone_map[zone] = zone
-            for neighbor in point.neighbors:
-                if neighbor not in noise:
+        # We want to connect all the minima with a forest path.
+        # Let's flood the forest.  The algorithm is as follows:
+        # - All the local minima are initally full of water, forming a set of
+        # distinct puddles.
+        # - Raise the water level.  Each newly-flooded tile must touch at least
+        # one other flooded tile; it becomes part of that puddle, and remembers
+        # the tile that flooded it.
+        # - Whenever a tile touches two or more puddles, they merge into one
+        # large puddle.  That tile is part of the forest path.  For each
+        # puddle, walk back along the chain of flooded tiles to the original
+        # minima; these tiles are also part of the forest path.
+        # When only one puddle remains, we're done, and all the minima are
+        # joined by a path along the lowest route.
+        flooded = {}
+        puddle_map = {}
+        path_from_puddle = defaultdict(dict)
+        paths = set()
+        for puddle, point in enumerate(local_minima):
+            flooded[point] = puddle
+            puddle_map[puddle] = puddle
+        ordered = sorted(noise.keys() - flooded.keys(), key=noise.__getitem__)
+        for point in ordered:
+            # Group any flooded neighbors by the puddle they're in.
+            # puddle => [neighboring points...]
+            adjacent_puddles = defaultdict(list)
+            for npt in point.neighbors:
+                if npt not in flooded:
                     continue
-                if neighbor in flooded:
-                    continue
-                pending.append((noise[neighbor], neighbor))
-                if zone not in paths[neighbor] or noise[paths[neighbor][zone]] > noise[point]:
-                    paths[neighbor][zone] = point
-        pending.sort()
-        while pending:
-            __noise, point = pending.pop(0)
-            flooded.add(point)
-            zones = set(paths[point])
-            if len(zones) == 1:
-                canon_zone, = zones
-            else:
-                # Gasp!  A connection!
-                self.map_canvas.set_architecture(point, e.Dirt)
-                for zone, pt in paths[point].items():
-                    while pt:
-                        self.map_canvas.set_architecture(pt, e.Dirt)
-                        pt = paths[pt].get(zone)
-                canon_zone = min(zones)
-                zones.remove(canon_zone)
-                for from_zone, to_zone in zone_map.items():
-                    if from_zone in zones or to_zone in zones:
-                        zone_map[from_zone] = canon_zone
-                # UGH need to rewrite paths in its entirety
-                for pt, zonepoints in paths.items():
-                    new_zonepoints = {}
-                    for orig_zone, pt2 in zonepoints.items():
-                        new_zone = zone_map[orig_zone]
-                        if new_zone not in new_zonepoints or noise[new_zonepoints[new_zone]] > noise[pt2]:
-                            new_zonepoints[new_zone] = pt2
-                    paths[pt] = new_zonepoints
+                puddle = puddle_map[flooded[npt]]
+                adjacent_puddles[puddle].append(npt)
+            # Every point is either a local minimum OR adjacent to a point
+            # lower than itself, by the very definition of "local minimum".
+            # Thus there must be at least one adjacent puddle.
+            assert adjacent_puddles
 
-            for neighbor in point.neighbors:
-                if neighbor not in noise:
-                    continue
-                if neighbor in flooded:
-                    continue
+            # Remember how to get from adjacent puddles to this point.
+            # Only store the lowest adjacent point.
+            for puddle, points in adjacent_puddles.items():
+                path_from_puddle[point][puddle] = min(
+                    points, key=noise.__getitem__)
 
-                # Store the noise as part of the pending list, so bisect can
-                # keep it in order
-                key = (noise[neighbor], neighbor)
-                i = bisect.bisect_left(pending, key)
-                if i >= len(pending) or pending[i] != key:
-                    pending.insert(i, key)
+            flooded[point] = this_puddle = min(adjacent_puddles)
+            if len(adjacent_puddles) > 1:
+                # Draw the path from both puddles' starting points to here
+                paths.add(point)
+                for puddle in adjacent_puddles:
+                    path_point = point
+                    while path_point:
+                        paths.add(path_point)
 
-                if canon_zone not in paths[neighbor] or noise[paths[neighbor][canon_zone]] > noise[point]:
-                    paths[neighbor][canon_zone] = point
+                        next_point = None
+                        cand_paths = path_from_puddle[path_point]
+                        for cand_puddle, cand_point in cand_paths.items():
+                            if puddle_map[cand_puddle] == puddle and (
+                                    next_point is None or
+                                    noise[cand_point] < noise[next_point]
+                            ):
+                                next_point = cand_point
+                        path_point = next_point
 
+                # This point connects two puddles; merge them.  Have to update
+                # the whole mapping, in case some other puddle is already
+                # mapped to one we're about to remap.
+                for from_puddle, to_puddle in puddle_map.items():
+                    if {from_puddle, to_puddle} & adjacent_puddles.keys():
+                        puddle_map[from_puddle] = this_puddle
 
-        point = next(iter(local_minima))
-        self.map_canvas.set_architecture(point, e.Bridge)
-        area = set()
-        surrounding = {point}
-        while True:
-            neighbors = {npt for point in surrounding for npt in point.neighbors}
-            new_surrounding = (neighbors - area - surrounding) & noise.keys()
-            for point in new_surrounding:
-                if any(noise[point] < noise[npt] for npt in point.neighbors if npt in surrounding):
-                    print(point)
-                    self.map_canvas.set_architecture(point, e.Bridge)
-                    return
+                # If there's only one puddle left, we're done!
+                if len(frozenset(puddle_map.values())) == 1:
                     break
-            area |= surrounding
-            surrounding = new_surrounding
 
-
+        # And draw the path, at last.
+        for path_point in paths:
+            self.map_canvas.set_architecture(path_point, e.Dirt)
 
 
 class RuinFractor(Fractor):
