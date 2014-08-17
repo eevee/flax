@@ -102,7 +102,8 @@ class Tile:
         if self.creature:
             yield self.creature
 
-        yield from self.items
+        for item in self.items:
+            yield item
         yield self.architecture
 
     def attach(self, entity):
