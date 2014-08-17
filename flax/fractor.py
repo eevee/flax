@@ -446,8 +446,10 @@ class PerlinFractor(Fractor):
         for puddle, point in enumerate(local_minima):
             flooded[point] = puddle
             puddle_map[puddle] = puddle
-        ordered = sorted(noise.keys() - flooded.keys(), key=noise.__getitem__)
-        for point in ordered:
+        flood_order = sorted(
+            noise.keys() - flooded.keys(),
+            key=noise.__getitem__)
+        for point in flood_order:
             # Group any flooded neighbors by the puddle they're in.
             # puddle => [neighboring points...]
             adjacent_puddles = defaultdict(list)

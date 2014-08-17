@@ -301,3 +301,23 @@ class Rectangle(tuple):
         """Iterate over every y-coordinate within the height of the rectangle.
         """
         return range(self.top, self.bottom + 1)
+
+
+class Blob:
+    """A region of arbitrary shape, containing an arbitrary set of discrete
+    points.
+
+    Intended for (and will perform best with) regions that are mostly
+    contiguous.
+    """
+    def __init__(self, spans):
+        self.spans = spans
+
+    @classmethod
+    def from_rectangle(cls, rect):
+        span = rect.horizontal_span
+        spans = []
+        for y in rect.range_height():
+            spans.append((y, span))
+        return cls(spans)
+
