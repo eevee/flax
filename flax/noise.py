@@ -68,13 +68,14 @@ def perlin_noise_factory(*resolution):
     def noise(*point):
         assert len(point) == dimension
 
-        # Scale the point from [0, 1] to the given resolution
-        point = tuple(coord * res for (coord, res) in zip(point, resolution))
-
-        # Build a list of the (min, max) bounds in each dimension
+        # Scale the point from [0, 1] to the given resolution, and build a list
+        # of the (min, max) bounds in each dimension
+        scaled_point = []
         grid_coords = []
-        for coord in point:
-            min_coord = int(coord - 0.000001)
+        for coord, res in zip(point, resolution):
+            scaled_coord = coord * res
+            scaled_point.append(scaled_coord)
+            min_coord = int(scaled_coord - 0.000001)
             max_coord = min_coord + 1
             grid_coords.append((min_coord, max_coord))
 
@@ -86,7 +87,7 @@ def perlin_noise_factory(*resolution):
             gradient = gradients[grid_point]
             dot = 0
             for i in range(dimension):
-                dot += gradient[i] * (point[i] - grid_point[i])
+                dot += gradient[i] * (scaled_point[i] - grid_point[i])
             dots.append(dot)
 
         # Interpolate all those dot products together.  The interpolation is
@@ -100,7 +101,7 @@ def perlin_noise_factory(*resolution):
         dim = dimension
         while len(dots) > 1:
             dim -= 1
-            s = s_curve(point[dim] - grid_coords[dim][0])
+            s = s_curve(scaled_point[dim] - grid_coords[dim][0])
 
             next_dots = []
             while dots:

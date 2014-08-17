@@ -42,19 +42,23 @@ class Point(tuple):
 
     def __add__(self, other):
         if isinstance(other, Direction):
-            return Point(self.x + other.value[0], self.y + other.value[1])
-        if isinstance(other, (Point, Size)):
-            return Point(self.x + other[0], self.y + other[1])
+            other = other.value
+        elif isinstance(other, (Point, Size)):
+            pass
+        else:
+            return NotImplemented
 
-        return NotImplemented
+        return Point(self.x + other[0], self.y + other[1])
 
     def __sub__(self, other):
         if isinstance(other, Direction):
-            return Point(self.x - other.value[0], self.y - other.value[1])
-        if isinstance(other, (Point, Size)):
-            return Point(self.x - other[0], self.y - other[1])
+            other = other.value
+        elif isinstance(other, (Point, Size)):
+            pass
+        else:
+            return NotImplemented
 
-        return NotImplemented
+        return Point(self.x + other[0], self.y + other[1])
 
 
 class Size(tuple):

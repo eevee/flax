@@ -161,9 +161,9 @@ class ComponentMeta(type):
         # TODO should this automatically include bases' handlers?
         attrs['event_handlers'] = event_handlers
 
-        # Prevent assigning to arbitrary attributes, and cut down on storage
-        # space a bit
-        # attrs.setdefault('__slots__', ())
+        # Prevent assigning to arbitrary attributes, cut down on storage space
+        # a bit, and make object creation (which we do a lot!) a bit faster
+        attrs.setdefault('__slots__', ())
 
         return super().__new__(meta, name, bases, attrs)
 
@@ -206,22 +206,33 @@ class ComponentMeta(type):
 
     def init_entity(cls, entity, *args, **kwargs):
         """Initialize an entity.  Calls the class's ``__init__`` method."""
+        if cls.__init__ is Component.__init__:
+            # Micro-optimization: if there's no __init__, don't even try to
+            # call it
+            return
         self = cls.adapt(entity)
         self.__init__(*args, **kwargs)
 
     def init_entity_type(cls, entity_type, *args, **kwargs):
         """Initialize an entity.  Calls the class's ``__typeinit__`` method."""
-        # Let's not use .adapt() and make the wrong impression here
         # TODO self.entity will actually be the class here which seems mega
         # janky.
-        self = cls.__new__(cls, entity_type)
+        if cls.__typeinit__ is Component.__typeinit__:
+            # Micro-optimization: if there's no __typeinit__, don't even try to
+            # call it
+            return
+        # This is a slightly naughty use of `adapt`, since we're not passing an
+        # entity, but EntityType has the same plumbing so it all works.
+        self = cls.adapt(entity_type)
         self.__typeinit__(*args, **kwargs)
 
     def adapt(cls, entity):
         """The actual constructor.  Creates a new component that wraps the
         given entity.  Does not call ``__init__``.
         """
-        return cls.__new__(cls, entity)
+        self = object.__new__(cls)
+        self.entity = entity
+        return self
 
     @property
     def component(cls):
@@ -323,14 +334,9 @@ class Component(metaclass=ComponentMeta, interface=IComponent):
     ``@handler``.  Such methods only exist as event handlers, and can't be
     called directly.
     """
+    # Note: the constructor is ComponentMeta.adapt, which also assigns the
+    # `entity` attribute.
     __slots__ = ('entity',)
-
-    def __new__(cls, entity):
-        # This is the "real" constructor.  It has to use __new__, since
-        # __init__ is used for other nefarious purposes.
-        self = super().__new__(cls)
-        self.entity = entity
-        return self
 
     def __typeinit__(self):
         pass
