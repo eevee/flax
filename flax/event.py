@@ -62,6 +62,14 @@ class Ascend(Event):
         return map.find(self.actor)
 
 
+class Open(Event):
+    def __init__(self, actor, target):
+        self.actor = actor
+        self.target = target
+
+        # TODO complain unless actor is next to target?
+
+
 class PickUp(Event):
     def __init__(self, actor, item):
         self.actor = actor

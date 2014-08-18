@@ -343,19 +343,21 @@ class PerlinFractor(Fractor):
         # things?  like, passing `noise` around is a really weird way to go
         # about this.  what would the state even look like though?
 
+        '''
         # TODO i think this needs another flooding algorithm, which probably
         # means it needs to be a lot simpler and faster...
         noise_factory = discrete_perlin_noise_factory(
-            *self.region.size, resolution=1, octaves=2)
+            *self.region.size, resolution=2, octaves=1)
 
         noise = {
             point: abs(noise_factory(*point) - 0.5) * 2
             for point in self.region.iter_points()
         }
         for point, n in noise.items():
-            if n < 0.1:
+            if n < 0.2:
                 self.map_canvas.set_architecture(point, e.Water)
         return
+        '''
 
         center_factory = discrete_perlin_noise_factory(
             self.region.height, resolution=3)
@@ -406,7 +408,7 @@ class PerlinFractor(Fractor):
                 arch = Tree
             self.map_canvas.set_architecture(point, arch)
 
-        # self._generate_river(noise)
+        self._generate_river(noise)
 
         for x in self.region.range_width():
             for y in (self.region.top, self.region.bottom):

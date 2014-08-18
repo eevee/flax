@@ -200,14 +200,22 @@ class CellWidget(urwid.Widget):
         from flax.event import Unequip
         from flax.geometry import Direction
         event = None
-        if key == 'up':
+        if key == 'up' or key == '8':
             event = self.world.player_action_from_direction(Direction.up)
-        elif key == 'down':
+        elif key == 'down' or key == '2':
             event = self.world.player_action_from_direction(Direction.down)
-        elif key == 'left':
+        elif key == 'left' or key == '4':
             event = self.world.player_action_from_direction(Direction.left)
-        elif key == 'right':
+        elif key == 'right' or key == '6':
             event = self.world.player_action_from_direction(Direction.right)
+        elif key == '1':
+            event = self.world.player_action_from_direction(Direction.down_left)
+        elif key == '3':
+            event = self.world.player_action_from_direction(Direction.down_right)
+        elif key == '7':
+            event = self.world.player_action_from_direction(Direction.up_left)
+        elif key == '9':
+            event = self.world.player_action_from_direction(Direction.up_right)
         elif key == '>':
             event = Descend(self.world.player)
         elif key == '<':
