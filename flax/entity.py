@@ -226,7 +226,7 @@ class Sprite(Enum):
     door_locked = '⍯'
     throne = '♄'
 
-    tree = '⯭'
+    tree = '🠝'
     grass = '⁖'
     tall_grass = 'ʬ'
 
