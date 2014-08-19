@@ -2,10 +2,12 @@ from collections import defaultdict
 from enum import Enum
 from functools import partial
 
+from flax.component import Render, OpenRender
 from flax.component import ICombatant, Combatant
-from flax.component import Solid, Empty
+from flax.component import Solid, Empty, DoorPhysics
 from flax.component import Container
 from flax.component import Portable
+from flax.component import Openable
 from flax.component import Equipment
 from flax.component import GenericAI, PlayerIntelligence
 from flax.component import PortalDownstairs, PortalUpstairs
@@ -257,8 +259,6 @@ class Material(Enum):
 # -----------------------------------------------------------------------------
 # Architecture
 
-from flax.component import Render
-
 Architecture = partial(EntityType, layer=Layer.architecture)
 
 StairsDown = Architecture(
@@ -317,6 +317,13 @@ Dirt = Architecture(
     Empty,
     Render(sprite=Sprite.speckle, color='dirt'),
     name='dirt',
+)
+
+Door = Architecture(
+    DoorPhysics,
+    OpenRender(open=(Sprite.door_open, 'dirt'), closed=(Sprite.door_closed, 'dirt')),
+    Openable,
+    name='door',
 )
 
 from flax.component import Breakable, HealthRender

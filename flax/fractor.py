@@ -198,6 +198,7 @@ class Fractor:
         self.map_canvas.add_item(points[3], Potion)
         self.map_canvas.add_item(points[4], e.Gem)
         self.map_canvas.add_item(points[5], e.Crate)
+        self.map_canvas.set_architecture(points[6], e.Door)
 
     def place_portal(self, portal_type, destination):
         from flax.component import Portal

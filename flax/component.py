@@ -16,6 +16,7 @@ import zope.interface as zi
 from flax.event import PickUp
 from flax.event import MeleeAttack, Damage, Die
 from flax.event import Ascend, Descend, Walk
+from flax.event import Open
 from flax.event import Equip
 from flax.event import Unequip
 
@@ -375,6 +376,7 @@ class Component(metaclass=ComponentMeta, interface=IComponent):
 # Rendering
 
 class IRender(IComponent):
+    # TODO consolidate these into a single some-kind-of-object
     sprite = static_attribute("")
     color = static_attribute("")
 
@@ -383,6 +385,28 @@ class Render(Component, interface=IRender):
     def __typeinit__(self, sprite, color):
         self.sprite = sprite
         self.color = color
+
+
+class OpenRender(Component, interface=IRender):
+    def __typeinit__(self, *, open, closed):
+        self.open = open
+        self.closed = closed
+
+    @property
+    def sprite(self):
+        # TODO what if it doesn't exist
+        if IOpenable(self.entity).open:
+            return self.open[0]
+        else:
+            return self.closed[0]
+
+    @property
+    def color(self):
+        # TODO what if it doesn't exist
+        if IOpenable(self.entity).open:
+            return self.open[1]
+        else:
+            return self.closed[1]
 
 
 class HealthRender(Component, interface=IRender):
@@ -452,6 +476,18 @@ class Empty(Component, interface=IPhysics):
         event.world.current_map.move(event.actor, event.target.position)
 
 
+class DoorPhysics(Component, interface=IPhysics):
+    def blocks(self, actor):
+        return not IOpenable(self.entity).open
+
+    @handler(Walk)
+    def handle_walk(self, event):
+        if self.blocks(event.actor):
+            event.cancel()
+        else:
+            event.world.current_map.move(event.actor, event.target.position)
+
+
 # -----------------------------------------------------------------------------
 # Map portal
 
@@ -474,6 +510,22 @@ class PortalUpstairs(Portal):
     @handler(Ascend)
     def handle_ascend(self, event):
         event.world.change_map(self.destination)
+
+
+# -----------------------------------------------------------------------------
+# Doors
+
+class IOpenable(IComponent):
+    open = static_attribute("""Whether I'm currently open.""")
+
+
+class Openable(Component, interface=IOpenable):
+    def __init__(self, *, open=False):
+        self.open = open
+
+    @handler(Open)
+    def handle_open(self, event):
+        self.open = True
 
 
 # -----------------------------------------------------------------------------

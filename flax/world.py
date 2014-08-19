@@ -1,6 +1,6 @@
 from collections import deque
 
-from flax.component import IActor, IPhysics
+from flax.component import IActor, IPhysics, IOpenable
 from flax.entity import Player
 from flax.fractor import BinaryPartitionFractor
 from flax.fractor import PerlinFractor
@@ -93,7 +93,7 @@ class World:
         intends to make in that direction.  i.e., if the space ahead of the
         player is empty, return `Walk`.
         """
-        from flax.event import Walk, MeleeAttack
+        from flax.event import Walk, MeleeAttack, Open
 
         # TODO i sure do this a lot!  maybe write a method for it!
         new_pos = self.current_map.find(self.player).position + direction
@@ -103,8 +103,16 @@ class World:
 
         if tile.creature:
             return MeleeAttack(self.player, direction)
+
+        try:
+            openable = IOpenable(tile.architecture)
+        except KeyError:
+            pass
         else:
-            return Walk(self.player, direction)
+            if not openable.open:
+                return Open(self.player, tile.architecture)
+
+        return Walk(self.player, direction)
 
     def advance(self):
         # Perform a turn for every actor on the map
