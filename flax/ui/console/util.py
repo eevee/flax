@@ -29,6 +29,8 @@ class WriteDetectingStream:
 
 
 class DebugWidget(urwid.ListBox):
+    _selectable = False
+
     def __init__(self):
         super().__init__(urwid.SimpleListWalker([]))
 

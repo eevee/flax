@@ -189,81 +189,7 @@ class CellWidget(urwid.Widget):
         return map_canvas
 
     def keypress(self, size, key):
-        # TODO why is this not on the top-level widget whoops?
-        if key == 'q':
-            raise urwid.ExitMainLoop
-
-        from flax.event import Ascend
-        from flax.event import Descend
-        from flax.event import PickUp
-        from flax.event import Equip
-        from flax.event import Unequip
-        from flax.geometry import Direction
-        event = None
-        if key == 'up' or key == '8':
-            event = self.world.player_action_from_direction(Direction.up)
-        elif key == 'down' or key == '2':
-            event = self.world.player_action_from_direction(Direction.down)
-        elif key == 'left' or key == '4':
-            event = self.world.player_action_from_direction(Direction.left)
-        elif key == 'right' or key == '6':
-            event = self.world.player_action_from_direction(Direction.right)
-        elif key == '1':
-            event = self.world.player_action_from_direction(Direction.down_left)
-        elif key == '3':
-            event = self.world.player_action_from_direction(Direction.down_right)
-        elif key == '7':
-            event = self.world.player_action_from_direction(Direction.up_left)
-        elif key == '9':
-            event = self.world.player_action_from_direction(Direction.up_right)
-        elif key == '>':
-            event = Descend(self.world.player)
-        elif key == '<':
-            event = Ascend(self.world.player)
-        elif key == ',':
-            tile = self.world.current_map.find(self.world.player)
-            # TODO might consolidate this to a single event later if it fucks
-            # up the sense of time.  or maybe it should!
-            for item in tile.items:
-                self.world.push_player_action(PickUp(self.world.player, item))
-        elif key == 'e':
-            # TODO menu prompt plz; identifying items is gonna be pretty
-            # important later
-            from flax.component import IContainer
-            from flax.entity import Armor
-            for item in IContainer(self.world.player).inventory:
-                if item.type is Armor:
-                    break
-            else:
-                return key
-            event = Equip(self.world.player, item)
-        elif key == 'r':
-            # TODO menu prompt plz; identifying items is gonna be pretty
-            # important later
-            from flax.relation import Wearing
-            rels = self.world.player.relates_to[Wearing]
-            if rels:
-                rel = next(iter(rels))
-                event = Unequip(self.world.player, rel.to_entity)
-            else:
-                pass
-        else:
-            return key
-
-        if event:
-            self.world.push_player_action(event)
-
-        # TODO um, shouldn't really advance the world if the player pressed a
-        # bogus key
-        # TODO should probably use the event loop?  right?
-        self.world.advance()
-
-        # FIXME lol this no longer works! FIXME
-        from flax.ui.console import widget
-        widget.status_widget.update()
-        #widget.status_widget.update()
-
-        self._invalidate()
+        return key
 
 
 class MeterWidget(urwid.WidgetWrap):
@@ -313,6 +239,8 @@ class MeterWidget(urwid.WidgetWrap):
 
 
 class PlayerStatusWidget(urwid.Pile):
+    _selectable = False
+
     def __init__(self, player):
         self.player = player
 
@@ -386,12 +314,18 @@ class InventoryMenu(urwid.WidgetWrap):
         super().__init__(urwid.LineBox(self.listbox))
 
     def keypress(self, size, key):
+        key = super().keypress(size, key)
+        if not key:
+            return
+
         if key == 'esc':
             self._emit('close')
         elif key == 'q':
             self._emit('close')
 
-        return self._w.keypress(size, key)
+        # Don't let any keypresses bubble back up to the top widget, which
+        # handles all the usual game controls!
+        return
 
 
 class FlaxWidget(urwid.WidgetWrap):
@@ -414,12 +348,14 @@ class FlaxWidget(urwid.WidgetWrap):
         super().__init__(self.overlay)
 
     def keypress(self, size, key):
+        # Let WidgetWrap pass the keypress to the wrapped overlay first
         key = super().keypress(size, key)
         if not key:
             return
 
-        # TODO this should go on the main screen, not the top level, so when
-        # a menu is open keys don't get here
+        if key == 'q':
+            raise urwid.ExitMainLoop
+
         if key == 'i':
             inventory = InventoryMenu(self.world.player)
             def close(widget, *args):
@@ -427,5 +363,76 @@ class FlaxWidget(urwid.WidgetWrap):
                 self.overlay.change_overlay(None)
             urwid.connect_signal(inventory, 'close', close)
             self.overlay.change_overlay(inventory)
+            return
+
+        from flax.event import Ascend
+        from flax.event import Descend
+        from flax.event import PickUp
+        from flax.event import Equip
+        from flax.event import Unequip
+        from flax.geometry import Direction
+        event = None
+        if key == 'up' or key == '8':
+            event = self.world.player_action_from_direction(Direction.up)
+        elif key == 'down' or key == '2':
+            event = self.world.player_action_from_direction(Direction.down)
+        elif key == 'left' or key == '4':
+            event = self.world.player_action_from_direction(Direction.left)
+        elif key == 'right' or key == '6':
+            event = self.world.player_action_from_direction(Direction.right)
+        elif key == '1':
+            event = self.world.player_action_from_direction(Direction.down_left)
+        elif key == '3':
+            event = self.world.player_action_from_direction(Direction.down_right)
+        elif key == '7':
+            event = self.world.player_action_from_direction(Direction.up_left)
+        elif key == '9':
+            event = self.world.player_action_from_direction(Direction.up_right)
+        elif key == '>':
+            event = Descend(self.world.player)
+        elif key == '<':
+            event = Ascend(self.world.player)
+        elif key == ',':
+            tile = self.world.current_map.find(self.world.player)
+            # TODO might consolidate this to a single event later if it fucks
+            # up the sense of time.  or maybe it should!
+            for item in tile.items:
+                self.world.push_player_action(PickUp(self.world.player, item))
+        elif key == 'e':
+            # TODO menu prompt plz; identifying items is gonna be pretty
+            # important later
+            from flax.component import IContainer
+            from flax.entity import Armor
+            for item in IContainer(self.world.player).inventory:
+                if item.type is Armor:
+                    break
+            else:
+                return key
+            event = Equip(self.world.player, item)
+        elif key == 'r':
+            # TODO menu prompt plz; identifying items is gonna be pretty
+            # important later
+            from flax.relation import Wearing
+            rels = self.world.player.relates_to[Wearing]
+            if rels:
+                rel = next(iter(rels))
+                event = Unequip(self.world.player, rel.to_entity)
+            else:
+                pass
         else:
             return key
+
+        if event:
+            self.world.push_player_action(event)
+
+        # TODO um, shouldn't really advance the world if the player pressed a
+        # bogus key
+        # TODO should probably use the event loop?  right?
+        self.world.advance()
+
+        # FIXME lol this no longer works! FIXME
+        from flax.ui.console import widget
+        widget.status_widget.update()
+        #widget.status_widget.update()
+
+        self._invalidate()
