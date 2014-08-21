@@ -1,12 +1,16 @@
 from itertools import islice
+import logging
 
 import urwid
 
 from flax.component import IRender
 from flax.geometry import Rectangle
 from flax.geometry import Size
-from .util import DebugWidget
+from .util import LogWidget
 from .util import ToggleableOverlay
+
+
+log = logging.getLogger(__name__)
 
 
 PALETTE = [
@@ -333,14 +337,14 @@ class FlaxWidget(urwid.WidgetWrap):
         self.world = world
 
         self.status_widget = PlayerStatusWidget(world.player)
-        self.debug_widget = DebugWidget()
+        self.log_widget = LogWidget()
 
         main_widget = urwid.Pile([
             urwid.Columns([
                 CellWidget(world),
                 (20, self.status_widget),
             ]),
-            (10, self.debug_widget),
+            (10, self.log_widget),
         ])
 
         self.overlay = ToggleableOverlay(main_widget)
@@ -359,7 +363,7 @@ class FlaxWidget(urwid.WidgetWrap):
         if key == 'i':
             inventory = InventoryMenu(self.world.player)
             def close(widget, *args):
-                print("well at least we got some args", *args)
+                log.debug("well at least we got some args {!r}".format(args))
                 self.overlay.change_overlay(None)
             urwid.connect_signal(inventory, 'close', close)
             self.overlay.change_overlay(inventory)

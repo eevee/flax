@@ -1,4 +1,8 @@
 from enum import Enum
+import logging
+
+
+log = logging.getLogger(__name__)
 
 
 class EventListenerTarget(Enum):
@@ -16,7 +20,7 @@ class Event:
         self.world = world
 
         if not self.target:
-            print("oops no target for", self)
+            log.debug("oops no target for {}".format(self))
             return
 
         self.target.handle_event(self)

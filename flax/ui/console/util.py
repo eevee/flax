@@ -4,60 +4,18 @@ import sys
 import urwid
 
 
-class WriteDetectingStream:
-    def __init__(self, stream, callback):
-        self._stream = stream
-        self._pending = None
-        self._callback = callback
-
-    def __getattr__(self, attr):
-        return getattr(self._stream, attr)
-
-    def write(self, data):
-        lines = data.splitlines(True)
-        if lines:
-            if self._pending:
-                lines[0] = self._pending + lines[0]
-                self._pending = None
-            if not lines[-1].endswith('\n'):
-                self._pending = lines.pop()
-
-            for line in lines:
-                self._callback(line)
-
-        self._stream.write(data)
-
-
-class DebugWidget(urwid.ListBox):
+class LogWidget(urwid.ListBox):
+    # Can't receive focus on its own; assumed that some parent widget will
+    # worry about scrolling us
     _selectable = False
 
     def __init__(self):
         super().__init__(urwid.SimpleListWalker([]))
 
-    def activate(self):
-        self.orig_stdout = sys.stdout
-        self.orig_stderr = sys.stderr
-
-        sys.stdout = WriteDetectingStream(sys.stdout, self.write_stdout)
-        sys.stderr = WriteDetectingStream(sys.stderr, self.write_stderr)
-
-    def deactivate(self):
-        sys.stdout = self.orig_stdout
-        sys.stderr = self.orig_stderr
-
-        del self.orig_stdout
-        del self.orig_stderr
-
-    def write_stdout(self, line):
-        self.body.append(urwid.Text(('stdout', line.rstrip('\n'))))
-        self.set_focus(len(self.body) - 1)
-
-    def write_stderr(self, line):
-        self.body.append(urwid.Text(('stderr', line.rstrip('\n'))))
-        self.set_focus(len(self.body) - 1)
-
-    def render(self, *a, **kw):
-        return super().render(*a, **kw)
+    def add_log_line(self, line):
+        text = urwid.Text(('log-game', line))
+        self.body.append(text)
+        self.focus_position = len(self.body) - 1
 
 
 class ToggleableOverlay(urwid.Overlay):

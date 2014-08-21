@@ -1,3 +1,4 @@
+import logging
 import sys
 
 import urwid
@@ -7,7 +8,22 @@ from .game import FlaxWidget
 from .game import PALETTE
 
 
+LEVEL_STDOUT = logging.INFO - 1
+LEVEL_STDERR = logging.INFO - 2
+
+
+class LogWidgetHandler(logging.Handler):
+    def __init__(self, *args, widget, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._widget = widget
+
+    def emit(self, record):
+        msg = self.format(record)
+        self._widget.add_log_line(msg)
+
+
 def main():
+    # Build the interface
     global widget
     world = World()
     widget = FlaxWidget(world)
@@ -17,19 +33,20 @@ def main():
         colors=256,
         bright_is_bold=False,
     )
-    widget.debug_widget.activate()
+
+    # Add a logging handler that redirects INFO records under the flax
+    # namespace into the UI
+    flax_logger = logging.getLogger('flax')
+    handler = LogWidgetHandler(widget=widget.log_widget)
+    flax_logger.addHandler(handler)
+    flax_logger.setLevel(logging.INFO)
+    flax_logger.propagate = False
+
     try:
         loop.run()
-    except BaseException:
-        # Need to unhook sys.stderr BEFORE re-raising, or we'll never see the
-        # exception
-        widget.debug_widget.deactivate()
-
-        # Also for some reason the exception just sort of vanishes unless we
-        # flush right here?
+    except Exception:
+        # For reasons beyond my mortal comprehension, the exception gets eaten
+        # if I don't flush stderr and then reraise it.
         sys.stdout.flush()
         sys.stderr.flush()
-
         raise
-    else:
-        widget.debug_widget.deactivate()

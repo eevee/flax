@@ -10,6 +10,7 @@ Each part is called a "component", which is what's defined here.  See the
 some of the component classes to get a feel for what's going on.
 """
 from collections import defaultdict
+import logging
 
 import zope.interface as zi
 
@@ -23,6 +24,9 @@ from flax.event import Unequip
 from flax.relation import RelationSubject
 from flax.relation import RelationObject
 from flax.relation import Wearing
+
+
+log = logging.getLogger(__name__)
 
 
 ###############################################################################
@@ -526,6 +530,7 @@ class Openable(Component, interface=IOpenable):
     @handler(Open)
     def handle_open(self, event):
         self.open = True
+        log.info("you open the door")
 
 
 # -----------------------------------------------------------------------------
@@ -577,7 +582,7 @@ class Combatant(Component, interface=ICombatant):
 
     @handler(MeleeAttack)
     def handle_attack(self, event):
-        print("{0} hits {1}".format(
+        log.info("{0} hits {1}".format(
             event.actor.type.name, self.entity.type.name))
 
         opponent = ICombatant(event.actor)
@@ -588,7 +593,7 @@ class Combatant(Component, interface=ICombatant):
     def handle_death(self, event):
         # TODO player death is different; probably raise an exception for the
         # ui to handle?
-        print("{} has died".format(self.entity.type.name))
+        log.info("{} has died".format(self.entity.type.name))
         event.world.current_map.remove(self.entity)
         # TODO and drop inventory, and/or a corpse
 
@@ -657,7 +662,7 @@ class Portable(Component, interface=IPortable):
     @handler(PickUp)
     def handle_picked_up(self, event):
         from flax.entity import Layer
-        print("ooh picking up", self.entity.type.name)
+        log.info("ooh picking up {}".format(self.entity.type.name))
         assert self.entity.type.layer is Layer.item
         event.world.current_map.remove(self.entity)
         IContainer(event.actor).inventory.append(self.entity)
@@ -702,21 +707,21 @@ class Equipment(Component, interface=IEquipment):
         #   the event when any entity vanishes
         # TODO must be holding the armor...  or standing on it?
         if self.worn_by:
-            print("that's already being worn")
+            log.info("that's already being worn")
             event.cancel()
             return
 
         # TODO surely, "stuff i'm wearing" belongs in a component, not hidden
         # in a set of relations.  but then, do relations actually do anything?
         self.worn_by.add(event.actor)
-        print("you put on the armor")
+        log.info("you put on the armor")
 
     @handler(Unequip)
     def handle_unequip(self, event):
         if event.actor in self.worn_by:
             self.worn_by.remove(event.actor)
-            print("you take off the armor")
+            log.info("you take off the armor")
         else:
-            print("you're not wearing the armor!")
+            log.info("you're not wearing the armor!")
 
     pass
