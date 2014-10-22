@@ -33,51 +33,6 @@ log = logging.getLogger(__name__)
 # Crazy plumbing begins here!
 
 # -----------------------------------------------------------------------------
-# Event handling
-
-class Handler:
-    @classmethod
-    def wrap(cls, func, event_class):
-        if isinstance(func, Handler):
-            func.add(event_class)
-            return func
-        else:
-            return cls(func, event_class)
-
-    def __init__(self, func, event_class):
-        self.func = func
-        self.event_classes = [event_class]
-
-    def add(self, event_class):
-        self.event_classes.append(event_class)
-
-    def __call__(self, *args, **kwargs):
-        return self.func(*args, **kwargs)
-
-
-# TODO: i feel like instead of having two of every event, i'd kind of like to
-# have events fire in two passes: during the first, any handler can cancel the
-# event or succeed the event, either of which stops further processing; during
-# the second, any handler can respond to the success of the event.
-# so the base Equipment can have an Equip handler that just equips it and adds
-# modifiers; if you want to make armor that sometimes can't be equipped, you
-# add a regular first-pass handler that can cancel, but if you want armor that
-# does something extra /after/ it's equipped successfully, you do second-pass.
-# and then if nothing calls .succeed(), the event is assumed to have failed,
-# which would also help prevent a few kinds of mistakes i've already made oops.
-# but then, that might only work if both the actor and the target get to
-# respond?  i.e. you fire Drink at a potion, but if you have some armor that
-# does something with potions, its event handlers are attached to /you/ rather
-# than to all potions everywhere.  maybe that's just part of the idea of having
-# event handlers from different 'directions' though??
-def handler(event_class):
-    def decorator(f):
-        return Handler.wrap(f, event_class)
-
-    return decorator
-
-
-# -----------------------------------------------------------------------------
 # Component definitions
 
 # TODO distinguish between those that should only be altered with modifiers
@@ -152,20 +107,6 @@ class ComponentMeta(type):
     objects are created with `adapt`.
     """
     def __new__(meta, name, bases, attrs, *, interface=None):
-        # Find and extract event handlers before creating the class, so they
-        # never exist in the class dict
-        event_handlers = defaultdict(list)
-
-        for key, value in list(attrs.items()):
-            if isinstance(value, Handler):
-                for cls in value.event_classes:
-                    event_handlers[cls].append(value.func)
-
-                del attrs[key]
-
-        # TODO should this automatically include bases' handlers?
-        attrs['event_handlers'] = event_handlers
-
         # Prevent assigning to arbitrary attributes, cut down on storage space
         # a bit, and make object creation (which we do a lot!) a bit faster
         attrs.setdefault('__slots__', ())
@@ -334,10 +275,6 @@ class Component(metaclass=ComponentMeta, interface=IComponent):
     initialize the combat part of that entity.  Creating an entity thus
     triggers the ``__init__`` for each of its components, as though the entity
     were all of those components simultaneously.
-
-    Components often respond to events as well, using methods decorated with
-    ``@handler``.  Such methods only exist as event handlers, and can't be
-    called directly.
     """
     # Note: the constructor is ComponentMeta.adapt, which also assigns the
     # `entity` attribute.
@@ -364,13 +301,6 @@ class Component(metaclass=ComponentMeta, interface=IComponent):
             return self.entity[cls, key]
         except KeyError:
             raise AttributeError
-
-    def handle_event(self, event):
-        # TODO what order should these be called in?
-        for event_class in type(event).__mro__:
-            for handler in self.event_handlers[event_class]:
-                # TODO at this point we are nested three loops deep
-                handler(self, event)
 
 
 ###############################################################################
@@ -449,47 +379,45 @@ class IPhysics(IComponent):
         """
 
 
-class Solid(Component, interface=IPhysics):
+# TODO i'm starting to think it would be nice to eliminate the dummy base class
+# i have for like every goddamn component?  but how?
+# TODO seems like i should /require/ that every entity type has a IPhysics,
+# maybe others...
+class Physics(Component, interface=IPhysics):
+    pass
+
+
+class Solid(Physics):
     def blocks(self, actor):
         # TODO i have /zero/ idea how passwall works here -- perhaps objects
         # should be made of distinct "materials"...
         return True
 
-    # TODO there's a fuzzy line here.  what's the difference between a
-    # component method and an event handler?  shouldn't *any* IPhysics object
-    # respond to Walk?  isn't that the whole point of a physical object?
-    # obviously there should be support for exceptions, but i feel like
-    # requiring a component implementation to respond to default events (and
-    # perhaps even associating each event with a specific interface somehow)
-    # would make this all make a bit more...  predictable.  and i think that
-    # would make the semantics a little better: most events are, in a way,
-    # really just calls to component methods that other things can twiddle
-    # TODO also seems like i should /require/ that every entity type has a
-    # IPhysics, maybe others...
-    @handler(Walk)
-    def handle_walk(self, event):
-        event.cancel()
 
-
-class Empty(Component, interface=IPhysics):
+class Empty(Physics):
     def blocks(self, actor):
         return False
 
-    @handler(Walk)
-    def handle_walk(self, event):
-        event.world.current_map.move(event.actor, event.target.position)
 
-
-class DoorPhysics(Component, interface=IPhysics):
+class DoorPhysics(Physics):
     def blocks(self, actor):
         return not IOpenable(self.entity).open
 
-    @handler(Walk)
-    def handle_walk(self, event):
-        if self.blocks(event.actor):
-            event.cancel()
-        else:
-            event.world.current_map.move(event.actor, event.target.position)
+
+@Walk.check(Solid)
+def cant_walk_through_solid_objects(event, _):
+    event.cancel()
+
+
+@Walk.check(DoorPhysics)
+def cant_walk_through_closed_doors(event, door):
+    if not IOpenable(door.entity).open:
+        event.cancel()
+
+
+@Walk.perform(Physics)
+def do_walk(event, _):
+    event.world.current_map.move(event.actor, event.target.position)
 
 
 # -----------------------------------------------------------------------------
@@ -505,15 +433,22 @@ class Portal(Component, interface=IPortal):
 
 
 class PortalDownstairs(Portal):
-    @handler(Descend)
-    def handle_descend(self, event):
-        event.world.change_map(self.destination)
+    pass
+
+
+@Descend.perform(PortalDownstairs)
+def do_descend_stairs(event, portal):
+    log.info("here we go")
+    event.world.change_map(portal.destination)
 
 
 class PortalUpstairs(Portal):
-    @handler(Ascend)
-    def handle_ascend(self, event):
-        event.world.change_map(self.destination)
+    pass
+
+
+@Ascend.perform(PortalUpstairs)
+def do_ascend_stairs(event, portal):
+    event.world.change_map(portal.destination)
 
 
 # -----------------------------------------------------------------------------
@@ -527,10 +462,12 @@ class Openable(Component, interface=IOpenable):
     def __init__(self, *, open=False):
         self.open = open
 
-    @handler(Open)
-    def handle_open(self, event):
-        self.open = True
-        log.info("you open the door")
+
+# TODO maybe this merits a check rule?  maybe EVERYTHING does.
+# TODO only if closed
+@Open.perform(Openable)
+def do_open(event, openable):
+    openable.open = True
 
 
 # -----------------------------------------------------------------------------
@@ -541,6 +478,8 @@ class IContainer(IComponent):
 
 
 class Container(Component, interface=IContainer):
+    # TODO surely this isn't called when something is polymorphed.  right?
+    # or...  maybe it is, if the entity didn't have an IContainer before?
     def __init__(self):
         self.inventory = []
 
@@ -573,29 +512,40 @@ class Combatant(Component, interface=ICombatant):
     def lose_health(self, event):
         self.current_health -= event.amount
 
+        # TODO i feel like this doesn't belong here (this definitely shouldn't
+        # need to take an event object), but then where should it go?
         if self.current_health <= 0:
             event.world.queue_immediate_event(Die(self.entity))
 
-    @handler(Damage)
-    def handle_damage(self, event):
-        self.lose_health(event)
 
-    @handler(MeleeAttack)
-    def handle_attack(self, event):
-        log.info("{0} hits {1}".format(
-            event.actor.type.name, self.entity.type.name))
+@MeleeAttack.perform(Combatant)
+def do_melee_attack(event, combatant):
+    opponent = ICombatant(event.actor)
+    event.world.queue_immediate_event(
+        Damage(combatant.entity, opponent.strength))
 
-        opponent = ICombatant(event.actor)
-        event.world.queue_immediate_event(
-            Damage(self.entity, opponent.strength))
 
-    @handler(Die)
-    def handle_death(self, event):
-        # TODO player death is different; probably raise an exception for the
-        # ui to handle?
-        log.info("{} has died".format(self.entity.type.name))
-        event.world.current_map.remove(self.entity)
-        # TODO and drop inventory, and/or a corpse
+@MeleeAttack.announce(Combatant)
+def announce_melee_attack(event, combatant):
+    log.info("{0} hits {1}".format(
+        event.actor.type.name, combatant.entity.type.name))
+
+
+@Damage.perform(Combatant)
+def do_damage(event, combatant):
+    combatant.lose_health(event)
+
+
+@Die.perform(Combatant)
+def do_die(event, combatant):
+    # TODO player death is a little different...
+    event.world.current_map.remove(combatant.entity)
+    # TODO and drop inventory, and/or a corpse
+
+
+@Die.announce(Combatant)
+def announce_die(event, combatant):
+    log.info("{} has died".format(combatant.entity.type.name))
 
 
 class Breakable(Component, interface=ICombatant):
@@ -657,15 +607,22 @@ class IPortable(IComponent):
 
 
 class Portable(Component, interface=IPortable):
-    # TODO maybe "actor" could just be an event target, and we'd need fewer
-    # duplicate events for the source vs the target?
-    @handler(PickUp)
-    def handle_picked_up(self, event):
-        from flax.entity import Layer
-        log.info("ooh picking up {}".format(self.entity.type.name))
-        assert self.entity.type.layer is Layer.item
-        event.world.current_map.remove(self.entity)
-        IContainer(event.actor).inventory.append(self.entity)
+    pass
+
+
+# TODO maybe "actor" could just be an event target, and we'd need fewer
+# duplicate events for the source vs the target?
+@PickUp.perform(Portable)
+def do_pick_up(event, portable):
+    from flax.entity import Layer
+    assert portable.entity.type.layer is Layer.item
+    event.world.current_map.remove(portable.entity)
+    IContainer(event.actor).inventory.append(portable.entity)
+
+
+@PickUp.announce(Portable)
+def announce_pick_up(event, portable):
+    log.info("ooh picking up {}".format(portable.entity.type.name))
 
 
 # -----------------------------------------------------------------------------
@@ -675,6 +632,7 @@ class IBodied(IComponent):
     wearing = derived_attribute("")
 
 
+# TODO this direly wants, like, a list of limbs and how many
 class Bodied(Component, interface=IBodied):
     wearing = RelationSubject(Wearing)
 
@@ -685,43 +643,63 @@ class IEquipment(IComponent):
 
 
 class Equipment(Component, interface=IEquipment):
+    # TODO i think this should live on Bodied as a simple dict of body part to
+    # equipment
+    # TODO problem is that if the player loses the item /for any reason
+    # whatsoever/, the item needs to vanish from the dict.  ALSO, the existence
+    # of the item in the dict can block some other actions.
     worn_by = RelationObject(Wearing)
 
     def __typeinit__(self, *, modifiers=None):
         self.modifiers = modifiers or ()
 
-    @handler(Equip)
-    def handle_equip(self, event):
-        # TODO recurring problems with events:
-        # - where does this checking live?  if something else interfered with
-        #   Equip, presumably it would assume that the Equip is legal in the
-        #   first place.  do i want a separate @checker step like inform7 has,
-        #   that lets the ultimate target validate whether the event could
-        #   possibly succeed in the first place?  (would be helpful for AI,
-        #   too, and a generalization of the `blocks` method.)
-        # - but then, what happens if something changes and the check is no
-        #   longer valid by the time the handler runs?  :S
-        # - similarly, what happens to events when an actor vanishes before
-        #   they get to fire?  that's an ongoing problem -- maybe should be
-        #   using weak properties for all the bound entities, and invalidating
-        #   the event when any entity vanishes
-        # TODO must be holding the armor...  or standing on it?
-        if self.worn_by:
-            log.info("that's already being worn")
-            event.cancel()
-            return
+# TODO recurring problems with events:
+# - what happens if something changes and the check is no
+#   longer valid by the time the handler runs?  :S
+# - similarly, what happens to events when an actor vanishes before
+#   they get to fire?  that's an ongoing problem -- maybe should be
+#   using weak properties for all the bound entities, and invalidating
+#   the event when any entity vanishes
+# TODO must be holding the armor...  or standing on it?
 
-        # TODO surely, "stuff i'm wearing" belongs in a component, not hidden
-        # in a set of relations.  but then, do relations actually do anything?
-        self.worn_by.add(event.actor)
-        log.info("you put on the armor")
 
-    @handler(Unequip)
-    def handle_unequip(self, event):
-        if event.actor in self.worn_by:
-            self.worn_by.remove(event.actor)
-            log.info("you take off the armor")
-        else:
-            log.info("you're not wearing the armor!")
+@Equip.check(Equipment)
+def equipper_must_have_body_part(event, equipment):
+    # TODO need to implement slots
+    if IBodied not in event.actor:
+        log.info("you can't wear that")
+        event.cancel()
 
-    pass
+
+@Equip.check(Equipment)
+def equipment_must_not_be_worn(event, equipment):
+    if equipment.worn_by:
+        log.info("that's already being worn")
+        event.cancel()
+
+
+@Equip.perform(Equipment)
+def put_on_equipment(event, equipment):
+    equipment.worn_by.add(event.actor)
+
+
+@Equip.announce(Equipment)
+def equipment_success(event, equipment):
+    log.info("you put on the armor")
+
+
+@Unequip.check(Equipment)
+def can_only_equip_whats_equipped(event, equipment):
+    if event.actor not in equipment.worn_by:
+        log.info("you're not wearing the armor!")
+        event.cancel()
+
+
+@Unequip.perform(Equipment)
+def take_off_equipment(event, equipment):
+    self.worn_by.remove(event.actor)
+
+
+@Unequip.announce(Equipment)
+def unequip_success(event, equipment):
+    log.info("you take off the armor")

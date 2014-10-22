@@ -11,9 +11,60 @@ class EventListenerTarget(Enum):
     owner = 'owner'
 
 
-# TODO a recurring theme in the other TODO's below is: where does "is this
-# sane" belong?
-class Event:
+class Rule:
+    def __init__(self, function, direct_object, indirect_object=None):
+        self.function = function
+        self.direct_object = direct_object
+        self.indirect_object = indirect_object
+
+
+class Rulebook:
+    def __init__(self):
+        self.rules = []
+
+    def __call__(self, *args, **kwargs):
+        def decorator(f):
+            self.add(Rule(f, *args, **kwargs))
+            return f
+
+        return decorator
+
+    def add(self, rule):
+        self.rules.append(rule)
+
+    def run(self, subject, target):
+        # TODO this knows a lot about events, whereas inform7 does not
+        # TODO flesh this out, be less invasive
+        for rule in self.rules:
+            # TODO better "does this rule apply?" logic
+            if rule.direct_object not in target:
+                continue
+            rule.function(subject, rule.direct_object.interface(target))
+
+
+class CancelEvent(Exception):
+    pass
+
+
+class MetaEvent(type):
+    def __init__(cls, name, bases, attrs):
+        super().__init__(name, bases, attrs)
+        cls.check = Rulebook()
+        cls.perform = Rulebook()
+        cls.announce = Rulebook()
+
+
+# TODO is it worth separating "action" from "event"?  where an event is purely
+# a side effect raised by a component that other stuff might want to respond
+# to, e.g. /any/ destruction of an object should unequip it
+# TODO probably want to convert all the existing events to use a standard
+# subject, direct object, indirect object.  and maybe the direct object should
+# never be a direction?
+# TODO should a complete lack of applicable check rules count as a default
+# failure?
+# TODO it's not clear how effects /provided by/ equipment etc. would work with
+# the rulebook approach
+class Event(metaclass=MetaEvent):
     cancelled = False
 
     def fire(self, world):
@@ -23,12 +74,30 @@ class Event:
             log.debug("oops no target for {}".format(self))
             return
 
-        self.target.handle_event(self)
-        if self.cancelled:
+        try:
+            multiplex_event = self.target.multiplex_event
+        except AttributeError:
+            targets = [self.target]
+        else:
+            targets = list(multiplex_event())
+
+        # TODO is there any value in having separate perform and announce
+        # stages?
+        # TODO what if someone wants to pre-empt the normal perform?  do they
+        # perform, announce, and then cancel?  so what's the point?
+        try:
+            for target in targets:
+                # TODO self.target = target
+                self.check.run(self, target)
+            for target in targets:
+                self.perform.run(self, target)
+            for target in targets:
+                self.announce.run(self, target)
+        except CancelEvent:
             return
 
     def cancel(self):
-        self.cancelled = True
+        raise CancelEvent
 
 
 class Walk(Event):

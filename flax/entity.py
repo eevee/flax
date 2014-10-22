@@ -2,12 +2,14 @@ from collections import defaultdict
 from enum import Enum
 from functools import partial
 
+from flax.component import Component
 from flax.component import Render, OpenRender
 from flax.component import ICombatant, Combatant
 from flax.component import Solid, Empty, DoorPhysics
 from flax.component import Container
 from flax.component import Portable
 from flax.component import Openable
+from flax.component import Bodied
 from flax.component import Equipment
 from flax.component import GenericAI, PlayerIntelligence
 from flax.component import PortalDownstairs, PortalUpstairs
@@ -146,6 +148,20 @@ class Entity:
         # better way to ask whether an iface is supported; __contains__?
         component = self.type.components[iface]
         return component.adapt(self)
+
+    def __contains__(self, component):
+        """Returns True iff this entity supports the given component or
+        interface.
+        """
+        if issubclass(component, Component):
+            try:
+                my_component = self.type.components[component.interface]
+            except KeyError:
+                return False
+            else:
+                return issubclass(my_component, component)
+        else:
+            return component in self.type.components
 
     # TODO this isn't used any more but i'm keeping it for the TODOs
     def add_modifiers(self, *modifiers):
@@ -359,7 +375,7 @@ Ruin = Architecture(
 # -----------------------------------------------------------------------------
 # Creatures
 
-Creature = partial(EntityType, Solid, Container, layer=Layer.creature)
+Creature = partial(EntityType, Solid, Container, Bodied, layer=Layer.creature)
 Player = Creature(
     Combatant(strength=3, health=10),
     PlayerIntelligence,

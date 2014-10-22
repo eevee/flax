@@ -58,6 +58,7 @@ class FloorPlan:
         self.current_map_name = new_map_name
         self.current_map = new_map
         self.current_map.place(self.player, player_position)
+        # TODO whoopsie, this doesn't actually update the map?
 
 
 class World:
@@ -80,7 +81,7 @@ class World:
         return self.floor_plan.current_map
 
     def change_map(self, map_name):
-        # TODO refund time?
+        # TODO refund time?  or only eat it after the events succeed
         self.event_queue.clear()
 
         self.floor_plan.change_map(map_name)

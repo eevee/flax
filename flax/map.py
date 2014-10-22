@@ -140,11 +140,8 @@ class Tile:
                 "Unknown layer {!r} for entity {!r}"
                 .format(entity.layer, entity))
 
-    def handle_event(self, event):
+    def multiplex_event(self):
         """Let a tile act as an event handler, by delegating to everything in
         the tile.
         """
-        for entity in self.entities:
-            entity.handle_event(event)
-            if event.cancelled:
-                return
+        return self.entities
