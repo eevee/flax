@@ -1,3 +1,4 @@
+from collections import deque
 from enum import Enum
 
 
@@ -18,6 +19,10 @@ class Direction(Enum):
             (self.value[1] == other.value[1] and
                 abs(self.value[0] - other.value[0]) <= 1)
         )
+
+    @property
+    def opposite(self):
+        return Direction((- self.value[0], - self.value[1]))
 
 
 class Point(tuple):
@@ -58,7 +63,7 @@ class Point(tuple):
         else:
             return NotImplemented
 
-        return Point(self.x + other[0], self.y + other[1])
+        return Point(self.x - other[0], self.y - other[1])
 
 
 class Size(tuple):
@@ -111,6 +116,10 @@ class Span(tuple):
 
     def __sub__(self, n):
         return self + -n
+
+    def overlaps(self, other):
+        """Return whether `self` and `other` have any points in common."""
+        return self.start <= other.end and self.end >= other.start
 
     def shift_into_view(self, point, *, margin=0):
         """Return a new `Span` that contains the given `point`, moving the
@@ -223,6 +232,10 @@ class Rectangle(tuple):
         return self.size.height
 
     @property
+    def area(self):
+        return self.size.area
+
+    @property
     def vertical_span(self):
         return Span(self.top, self.bottom)
 
@@ -286,6 +299,36 @@ class Rectangle(tuple):
             right=self.right + right,
         )
 
+    def shrink(self, amount):
+        new_left = self.left + amount
+        new_right = self.right - amount
+        if new_left > new_right:
+            new_left = new_right = (self.left + self.right) // 2
+
+        new_top = self.top + amount
+        new_bottom = self.bottom - amount
+        if new_top > new_bottom:
+            new_top = new_bottom = (self.top + self.bottom) // 2
+
+        return type(self).from_edges(
+            top=new_top, bottom=new_bottom,
+            left=new_left, right=new_right,
+        )
+
+    def iter_border(self):
+        for x in range(self.left + 1, self.right):
+            yield Point(x, self.top), Direction.up
+            yield Point(x, self.bottom), Direction.down
+
+        for y in range(self.top + 1, self.bottom):
+            yield Point(self.left, y), Direction.left
+            yield Point(self.right, y), Direction.right
+
+        yield Point(self.left, self.top), Direction.up_left
+        yield Point(self.right, self.top), Direction.up_right
+        yield Point(self.left, self.bottom), Direction.down_left
+        yield Point(self.right, self.bottom), Direction.down_right
+
     def iter_points(self):
         """Iterate over all tiles within this rectangle as points."""
         for x in range(self.left, self.right + 1):
@@ -311,13 +354,128 @@ class Blob:
     contiguous.
     """
     def __init__(self, spans):
+        # Mapping of y => ordered tuple of non-overlapping spans
         self.spans = spans
 
     @classmethod
     def from_rectangle(cls, rect):
-        span = rect.horizontal_span
-        spans = []
-        for y in rect.range_height():
-            spans.append((y, span))
+        value = (rect.horizontal_span,)
+        spans = dict.fromkeys(rect.range_height(), value)
         return cls(spans)
 
+    def __contains__(self, point):
+        if not isinstance(point, Point):
+            return NotImplemented
+
+        x = point.x
+        for span in self.spans.get(point.y, ()):
+            if x in span:
+                return True
+
+        return False
+
+    @property
+    def height(self):
+        if not self.spans:
+            return 0
+        return max(self.spans) - min(self.spans) + 1
+
+    @property
+    def area(self):
+        return sum(
+            len(span)
+            for spans in self.spans.values()
+            for span in spans
+        )
+
+    def __eq__(self, other):
+        if not isinstance(other, Blob):
+            return NotImplemented
+
+        return self.spans == other.spans
+
+    def __add__(self, other):
+        if not isinstance(other, Blob):
+            return NotImplemented
+
+        new_spans = {}
+        for y in self.spans.keys() | other.spans.keys():
+            if y not in self.spans:
+                new_spans[y] = other.spans[y]
+            elif y not in other.spans:
+                new_spans[y] = self.spans[y]
+            else:
+                my_spans = deque(self.spans[y])
+                combined_spans = []
+
+                # For each 'other' span, find which spans it overlaps, and
+                # merge all of them into a single new span.
+                for span in other.spans[y]:
+                    starts = [span.start]
+                    ends = [span.end]
+                    while my_spans and span.overlaps(my_spans[0]):
+                        subsumed_span = my_spans.popleft()
+                        starts.append(subsumed_span.start)
+                        ends.append(subsumed_span.end)
+
+                    combined_spans.append(Span(min(starts), max(ends)))
+
+                combined_spans.extend(my_spans)
+                combined_spans.sort()
+
+                new_spans[y] = tuple(combined_spans)
+
+        return type(self)(new_spans)
+
+    def __sub__(self, other):
+        if not isinstance(other, Blob):
+            return NotImplemented
+
+        new_spans = {}
+        for y, spans in self.spans.items():
+            if y not in other.spans:
+                # Nothing to remove
+                new_spans[y] = spans
+                continue
+
+            other_spans = deque(other.spans[y])
+            resolved_spans = []
+            for span in spans:
+                # Remove any subtracted spans that don't overlap ours
+                while other_spans and other_spans[0].end < span.start:
+                    other_spans.popleft()
+
+                for other_span in other_spans:
+                    if not span.overlaps(other_span):
+                        break
+
+                    # Subtracting one span from another may leave zero, one, or
+                    # two pieces remaining: the left end, the right end, both,
+                    # or neither.  Check for each end.
+                    # Note that we need a < on the matching end, because if the
+                    # subtracted span has the same endpoint, there's nothing
+                    # left over on that end to make a new span.
+                    if span.start < other_span.start <= span.end:
+                        left_piece = Span(span.start, other_span.start - 1)
+                        resolved_spans.append(left_piece)
+
+                    if span.start <= other_span.end < span.end:
+                        right_piece = Span(other_span.end + 1, span.end)
+                        # DON'T add the right piece yet -- it might intersect
+                        # another subtracted span!  Instead, treat it as the
+                        # current span.
+                        span = right_piece
+                    else:
+                        # There was a left overlap, but no right overlap, so
+                        # there's nothing left to subtract from.
+                        span = None
+                        break
+
+                # Add any leftover span
+                if span:
+                    resolved_spans.append(span)
+
+            if resolved_spans:
+                new_spans[y] = tuple(resolved_spans)
+
+        return type(self)(new_spans)
