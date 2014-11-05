@@ -35,7 +35,7 @@ PALETTE = [
     ('stairs', 'white', 'dark gray', None, '#aaa', 'g19'),
     ('grass', 'dark green', 'default', None, '#060', 'default'),
     ('tree', 'dark green', 'default', None, '#080', 'default'),
-    ('dirt', 'brown', 'default', None, '#960', 'default'),
+    ('dirt', 'brown', 'default', None, '#660', 'default'),
     ('decay0', 'white', 'default', None, 'g85', 'default'),
     ('decay1', 'light gray', 'default', None, 'g65', 'default'),
     ('decay2', 'dark gray', 'default', None, 'g45', 'default'),

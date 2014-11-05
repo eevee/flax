@@ -542,6 +542,8 @@ def generate_caves(map_canvas, region, wall_tile, force_walls=(), force_floors=(
     for point in region.iter_points():
         if grid[point]:
             map_canvas.set_architecture(point, wall_tile)
+        else:
+            map_canvas.set_architecture(point, e.Dirt)
 
 
 # TODO it would be slick to have a wizard menu with commands like "regenerate

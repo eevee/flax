@@ -353,7 +353,7 @@ CutGrass = Architecture(
 )
 Dirt = Architecture(
     Empty,
-    Render(sprite=Sprite.speckle, color='dirt'),
+    Render(sprite=Sprite.floor, color='dirt'),
     name='dirt',
 )
 
