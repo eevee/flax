@@ -9,10 +9,17 @@ from flax.geometry import Size
 
 
 class FloorPlan:
-    """Layout of the maps."""
+    """Arrangement of the maps themselves."""
     # Will also take care of saving and loading later, maybe?
     def __init__(self, player):
         self.player = player
+
+        # TODO just thinking about how this would work, for now
+        #self.zones = {}
+        #self.zones['kadath'] = [RuinLayout(), RuinLayout(), RuinLayout()]
+        # TODO but really there should be a thing that generates a zone, too,
+        # with its own handful of parameters.  also, "zone" is a bad name for a
+        # region.
 
         # I suppose for now we'll just hardcode this, but...
         # TODO how will all this work?  where do the connections between maps

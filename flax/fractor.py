@@ -685,3 +685,11 @@ class RuinFractor(Fractor):
                 self.map_canvas.set_architecture(room_center + direction, e.Pillar)
         else:
             super().place_portal(portal_type, destination)
+
+
+class MapLayout:
+    """Knows how to generate a specific style of map, based on some set of
+    parameters.
+    """
+    def generate_map(self):
+        raise NotImplementedError
