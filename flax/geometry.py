@@ -72,6 +72,13 @@ class Size(tuple):
         assert height >= 0
         return super().__new__(cls, (width, height))
 
+    def __floordiv__(self, n):
+        if not isinstance(n, (int, float)):
+            return NotImplemented
+        assert n > 0
+
+        return type(self)(self[0] // n, self[1] // n)
+
     @property
     def width(self):
         return self[0]
@@ -103,6 +110,9 @@ class Span(tuple):
 
     def __contains__(self, point):
         return self.start <= point <= self.end
+
+    def __iter__(self):
+        return iter(range(self.start, self.end + 1))
 
     def __len__(self):
         return self.end - self.start + 1
@@ -251,8 +261,8 @@ class Rectangle(tuple):
         ``relative_point(0.5, 0.5)`` returns the center.
         """
         return Point(
-            self.left + int(self.width * relative_width + 0.5),
-            self.top + int(self.height * relative_height + 0.5),
+            self.left + int((self.width - 1) * relative_width + 0.5),
+            self.top + int((self.height - 1) * relative_height + 0.5),
         )
 
     def center(self):
@@ -479,3 +489,9 @@ class Blob:
                 new_spans[y] = tuple(resolved_spans)
 
         return type(self)(new_spans)
+
+    def iter_points(self):
+        for y, spans in self.spans.items():
+            for span in spans:
+                for x in span:
+                    yield Point(x, y)

@@ -210,6 +210,7 @@ class Entity:
 class Sprite(Enum):
     solid = ' '
     fill = '█'
+    halftone = '▒'
     floor = '·'
     water = '⧛'
     bridge = '⬮'
@@ -217,6 +218,7 @@ class Sprite(Enum):
     pillar = '♊'
     fence = '⌗'
 
+    gate = '║'
     decayed_block = '◾'
     rubble1 = '⬝'
     rubble2 = '⁖'
@@ -234,15 +236,19 @@ class Sprite(Enum):
     ruin4b = '▗'
     ruin4c = '▘'
     ruin4d = '▝'
+    broken_pillar = '⁔'
 
     stairs_down = '𝆲'
     stairs_up = '𝆱'
-    door_closed = '⌸'
+    ladder = '‡'
+    door_closed = '⌸'  # 🚪?
     door_open = '⎕'
     door_locked = '⍯'
     throne = '♄'
+    sign = '🜿'
 
     tree = '🠝'
+    pine_tree = '⸙'
     grass = '⁖'
     tall_grass = 'ʬ'
 
@@ -289,14 +295,30 @@ StairsUp = Architecture(
     Render(sprite=Sprite.stairs_up, color='stairs'),
     name='stairs',
 )
+Ladder = Architecture(
+    Empty,
+    PortalUpstairs,
+    Render(sprite=Sprite.ladder, color='wood'),
+    name='ladder',
+)
 CaveWall = Architecture(
     Solid,
-    Render(sprite=Sprite.solid, color='default'),
+    Render(sprite=Sprite.halftone, color='rock'),
     name='wall',
 )
 Wall = Architecture(
     Solid,
     Render(sprite=Sprite.fill, color='wall'),
+    name='wall',
+)
+Pillar = Architecture(
+    Solid,
+    Render(sprite=Sprite.pillar, color='rock'),
+    name='pillar',
+)
+KadathGate = Architecture(
+    Solid,
+    Render(sprite=Sprite.gate, color='gate'),
     name='wall',
 )
 Water = Architecture(

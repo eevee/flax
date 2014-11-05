@@ -6,9 +6,10 @@ from flax.component import Breakable, IPhysics, Empty
 import flax.entity as e
 from flax.entity import (
     Entity, CaveWall, Wall, Floor, Tree, Grass, CutGrass, Salamango, Armor,
-    Potion, StairsDown, StairsUp
+    Potion, StairsDown, StairsUp,
+    KadathGate
 )
-from flax.geometry import Point, Rectangle, Size
+from flax.geometry import Blob, Direction, Point, Rectangle, Size
 from flax.map import Map
 from flax.noise import discrete_perlin_noise_factory
 
@@ -115,20 +116,25 @@ class MapCanvas:
 
 
 class Room:
-    """A room, which has not yet been drawn.  Performs some light randomization
-    of the room shape.
+    """A room, which has not yet been drawn.
     """
-    MINIMUM_SIZE = Size(5, 5)
+    def __init__(self, rect):
+        self.rect = rect
 
-    def __init__(self, region):
-        self.region = region
-        self.size = Size(
-            random_normal_range(self.MINIMUM_SIZE.width, region.width),
-            random_normal_range(self.MINIMUM_SIZE.height, region.height),
+    @classmethod
+    def randomize(cls, region, *, minimum_size=Size(5, 5)):
+        """Place a room randomly in a region, randomizing its size and position.
+        """
+        # TODO need to guarantee the region is big enough
+        size = Size(
+            random_normal_range(minimum_size.width, region.width),
+            random_normal_range(minimum_size.height, region.height),
         )
-        left = region.left + random.randint(0, region.width - self.size.width)
-        top = region.top + random.randint(0, region.height - self.size.height)
-        self.rect = Rectangle(Point(left, top), self.size)
+        left = region.left + random.randint(0, region.width - size.width)
+        top = region.top + random.randint(0, region.height - size.height)
+        rect = Rectangle(Point(left, top), size)
+
+        return cls(rect)
 
     def draw_to_canvas(self, canvas):
         assert self.rect in canvas.rect
@@ -136,15 +142,8 @@ class Room:
         for point in self.rect.iter_points():
             canvas.set_architecture(point, e.Floor)
 
-        # Top and bottom
-        for x in self.rect.range_width():
-            canvas.set_architecture(Point(x, self.rect.top), Wall)
-            canvas.set_architecture(Point(x, self.rect.bottom), Wall)
-
-        # Left and right (will hit corners again, whatever)
-        for y in self.rect.range_height():
-            canvas.set_architecture(Point(self.rect.left, y), Wall)
-            canvas.set_architecture(Point(self.rect.right, y), Wall)
+        for point, _ in self.rect.iter_border():
+            canvas.set_architecture(point, e.Wall)
 
 
 class Fractor:
@@ -168,6 +167,12 @@ class Fractor:
         self.generate()
         self.place_stuff()
 
+        # TODO putting this here doesn't seem right, given that the first floor
+        # explicitly needs to put the down portal in a specific area
+        # TODO also not really sure how this works for multiple connections, or
+        # special kinds of portals, or whatever.  that's, like, half about the
+        # particular kind of map.  i'm starting to think that a map design
+        # itself may need to be an object/function.
         if up:
             self.place_portal(StairsUp, up)
         if down:
@@ -183,7 +188,7 @@ class Fractor:
 
     def generate_room(self, region):
         # TODO lol not even using room_size
-        room = Room(region)
+        room = Room.randomize(region)
         room.draw_to_canvas(self.map_canvas)
 
     def place_stuff(self):
@@ -507,32 +512,174 @@ class PerlinFractor(Fractor):
             self.map_canvas.set_architecture(path_point, e.Dirt)
 
 
+def generate_caves(map_canvas, region, wall_tile, force_walls=(), force_floors=()):
+    """Uses cellular automata to generate a cave system.
+
+    Idea from: http://www.roguebasin.com/index.php?title=Cellular_Automata_Method_for_Generating_Random_Cave-Like_Levels
+    """
+    base_grid = {}
+    for point in force_walls:
+        base_grid[point] = True
+    for point in force_floors:
+        base_grid[point] = False
+
+    grid = {point: random.random() < 0.45 for point in region.iter_points()}
+    grid.update(base_grid)
+    for generation in range(5):
+        next_grid = base_grid.copy()
+        for point in region.iter_points():
+            neighbors = grid[point] + sum(grid.get(neighbor, True) for neighbor in point.neighbors)
+            # The 4-5 rule: the next gen is a wall if either:
+            # - the current gen is a wall and 4+ neighbors are walls;
+            # - the current gen is a space and 5+ neighbors are walls.
+            next_grid[point] = neighbors >= 5
+        grid = next_grid
+
+    # TODO need to connect any remaining areas here
+    # TODO maybe i should LET this become a lot of small disjoint caves, so it
+    # acts like a bunch of rooms.  then connect them with doors + hallways!
+
+    for point in region.iter_points():
+        if grid[point]:
+            map_canvas.set_architecture(point, wall_tile)
+
+
+# TODO it would be slick to have a wizard menu with commands like "regenerate
+# this entire level"
+
 class RuinFractor(Fractor):
     # TODO should really really let this wrap something else
     def generate(self):
         self.map_canvas.clear(Floor)
 
-        room = Room(self.region)
+        # So what I want here is to have a cave system with a room in the
+        # middle, then decay the room.
+        # Some constraints:
+        # - the room must have a wall where the entrance could go, which faces
+        # empty space
+        # - a wall near the entrance must be destroyed
+        # - the player must start in a part of the cave connected to the
+        # destroyed entrance
+        # - none of the decay applied to the room may block off any of its
+        # interesting features
+
+        # TODO it would be nice if i could really write all this without ever
+        # having to hardcode a specific direction, so the logic could always be
+        # rotated freely
+        side = random.choice([Direction.left, Direction.right])
+
+        # TODO assert region is big enough
+        room_size = Size(
+            random_normal_range(9, int(self.region.width * 0.4)),
+            random_normal_range(9, int(self.region.height * 0.4)),
+        )
+
+        room_position = self.region.center() - room_size // 2
+        room_position += Point(
+            random_normal_int(0, self.region.width * 0.1),
+            random_normal_int(0, self.region.height * 0.1),
+        )
+
+        room_rect = Rectangle(room_position, room_size)
+        self.room_region = room_rect
+
+        room = Room(room_rect)
+
+        cave_area = (
+            Blob.from_rectangle(self.region)
+            - Blob.from_rectangle(room_rect)
+        )
+        self.cave_region = cave_area
+        walls = [point for (point, _) in self.region.iter_border()]
+        floors = []
+        for point, edge in room_rect.iter_border():
+            if edge is side or edge.adjacent_to(side):
+                floors.append(point)
+                floors.append(point + side)
+        generate_caves(
+            self.map_canvas, cave_area, CaveWall,
+            force_walls=walls, force_floors=floors,
+        )
+
         room.draw_to_canvas(self.map_canvas)
 
-        noise = discrete_perlin_noise_factory(
-            *self.region.size, resolution=5, octaves=4)
-        for point in self.region.iter_points():
-            # TODO would greatly prefer some architecture types that just have
-            # a 'decay' property affecting their rendering, but that would
-            # require rendering to be per-entity, and either a method or
-            # something that could be updated on the fly
-            if self.map_canvas._arch_grid[point] is Wall:
-                n = noise(*point)
-                if n < 0.7:
-                    arch = e.Ruin(Breakable(n / 0.7))
-                else:
-                    arch = e.Wall
-                self.map_canvas.set_architecture(point, arch)
-            elif self.map_canvas._arch_grid[point] is Floor:
-                n = noise(*point)
-                if n < 0.5:
-                    arch = e.Rubble(Breakable(n / 0.5))
-                else:
-                    arch = e.Floor
-                self.map_canvas.set_architecture(point, arch)
+        # OK, now draw a gate in the middle of the side wall
+        if side is Direction.left:
+            x = room_rect.left
+        else:
+            x = room_rect.right
+        mid_y = room_rect.top + room_rect.height // 2
+        if room_rect.height % 2 == 1:
+            min_y = mid_y - 1
+            max_y = mid_y + 1
+        else:
+            min_y = mid_y - 2
+            max_y = mid_y + 1
+        for y in range(min_y, max_y + 1):
+            self.map_canvas.set_architecture(Point(x, y), KadathGate)
+
+        # Beat up the border of the room near the gate
+        y = random.choice(
+            tuple(range(room_rect.top, min_y))
+            + tuple(range(max_y + 1, room_rect.bottom))
+        )
+        for dx in range(-2, 3):
+            for dy in range(-2, 3):
+                point = Point(x + dx, y + dy)
+                # TODO i think what i may want is to have the cave be a
+                # "Feature", where i can check whether it has already claimed a
+                # tile, or draw it later, or whatever.
+                if self.map_canvas._arch_grid[point] is not CaveWall:
+                    distance = abs(dx) + abs(dy)
+                    ruination = random_normal_range(0, 0.2) + distance * 0.2
+                    self.map_canvas.set_architecture(
+                        point, e.Rubble(Breakable(ruination)))
+
+        # And apply some light ruination to the inside of the room
+        border = list(room_rect.iter_border())
+        # TODO don't do this infinitely; give up after x tries
+        while True:
+            point, edge = random.choice(border)
+            if self.map_canvas._arch_grid[point + edge] is CaveWall:
+                break
+        self.map_canvas.set_architecture(point, CaveWall)
+        self.map_canvas.set_architecture(point - edge, CaveWall)
+        # TODO this would be neater if it were a slightly more random pattern
+        for direction in (
+                Direction.up, Direction.down, Direction.left, Direction.right):
+            self.map_canvas.set_architecture(
+                point - edge + direction, CaveWall)
+
+    def place_stuff(self):
+        assert self.map_canvas.floor_spaces, \
+            "can't place player with no open spaces"
+
+        cave_floor = frozenset(self.cave_region.iter_points())
+        cave_floor &= self.map_canvas.floor_spaces
+        points = random.sample(list(cave_floor), 5)
+        from flax.component import Portal
+        # TODO this should exit.  also confirm.  should be part of the ladder
+        # entity?  also, world doesn't place you here.  maybe the map itself
+        # should know this?
+        ladder = e.Ladder(Portal(destination='nowhere'))
+        self.map_canvas.set_architecture(points[0], ladder)
+
+        self.map_canvas.add_item(points[1], e.Gem)
+        self.map_canvas.add_item(points[2], e.Crate)
+
+    def place_portal(self, portal_type, destination):
+        from flax.component import Portal
+        if portal_type is e.StairsDown:
+            # Add the down stairs to the room, surrounded by some pillars
+            room_center = self.room_region.center()
+            self.map_canvas.set_architecture(
+                room_center,
+                portal_type(Portal(destination=destination)),
+            )
+            for direction in (
+                Direction.up_right, Direction.down_right,
+                Direction.up_left, Direction.down_left
+            ):
+                self.map_canvas.set_architecture(room_center + direction, e.Pillar)
+        else:
+            super().place_portal(portal_type, destination)

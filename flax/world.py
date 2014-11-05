@@ -22,12 +22,14 @@ class FloorPlan:
         # TODO maybe maps should just know their own names
         # TODO check that all maps are connected?
         self.maps = {}
-        self.maps['map0'] = PerlinFractor(Size(120, 30)).generate_map(down='map1')
+        self.maps['map0'] = RuinFractor(Size(120, 30)).generate_map(down='map1')
         self.maps['map1'] = BinaryPartitionFractor(Size(80, 24), minimum_size=Size(10, 8)).generate_map(up='map0')
         self.current_map_name = None
         self.current_map = None
 
-        self.maps['ruin'] = RuinFractor(Size(80, 24)).generate_map()
+        # TODO should this obj just switch to the first map when it starts?
+        # that doesn't seem right.
+        self.starting_map = 'map0'
 
     def change_map(self, new_map_name):
         # Probably should call world.change_map() instead, which will clear out
@@ -74,7 +76,7 @@ class World:
         self.event_queue = deque()
 
         self.floor_plan = FloorPlan(self.player)
-        self.change_map('map0')  # TODO seems hardcodey to put this here
+        self.change_map(self.floor_plan.starting_map)
 
     @property
     def current_map(self):

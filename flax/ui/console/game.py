@@ -28,6 +28,7 @@ PALETTE = [
 
     # Architecture
     ('wall', 'light gray', 'default', None, 'g70', 'g70'),
+    ('rock', 'dark gray', 'default', None, '#860', 'default'),
     ('floor', 'black', 'default', None, 'g20', 'default'),
     ('water', 'light blue', 'dark blue', None, '#06f', '#008'),
     ('bridge', 'brown', 'dark blue', None, 'g50', '#008'),
@@ -39,6 +40,9 @@ PALETTE = [
     ('decay1', 'light gray', 'default', None, 'g65', 'default'),
     ('decay2', 'dark gray', 'default', None, 'g45', 'default'),
     ('decay3', 'black', 'default', None, 'g25', 'default'),
+
+    # Special
+    ('gate', 'light magenta', 'default', None, '#a0f', 'default'),
 
     # Creatures
     ('player', 'yellow', 'default', None, '#ff6', 'default'),
