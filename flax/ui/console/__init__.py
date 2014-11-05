@@ -24,7 +24,6 @@ class LogWidgetHandler(logging.Handler):
 
 def main():
     # Build the interface
-    global widget
     world = World()
     widget = FlaxWidget(world)
     loop = urwid.MainLoop(widget, PALETTE)

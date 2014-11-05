@@ -340,12 +340,13 @@ class FlaxWidget(urwid.WidgetWrap):
     def __init__(self, world):
         self.world = world
 
+        self.world_widget = CellWidget(world)
         self.status_widget = PlayerStatusWidget(world.player)
         self.log_widget = LogWidget()
 
         main_widget = urwid.Pile([
             urwid.Columns([
-                CellWidget(world),
+                self.world_widget,
                 (20, self.status_widget),
             ]),
             (10, self.log_widget),
@@ -438,9 +439,5 @@ class FlaxWidget(urwid.WidgetWrap):
         # TODO should probably use the event loop?  right?
         self.world.advance()
 
-        # FIXME lol this no longer works! FIXME
-        from flax.ui.console import widget
-        widget.status_widget.update()
-        #widget.status_widget.update()
-
-        self._invalidate()
+        self.status_widget.update()
+        self.world_widget._invalidate()
