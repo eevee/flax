@@ -401,11 +401,15 @@ class FlaxWidget(urwid.WidgetWrap):
 
                 if command == 'down':
                     import random
-                    if not self.world.current_map.portal_index:
+                    from flax.component import PortalDownstairs
+                    maps = []
+                    for mapname, entity in self.world.current_map.portal_index.items():
+                        if PortalDownstairs in entity:
+                            maps.append(mapname)
+                    if not maps:
                         log.info("No down stairs here.")
                         return
-                    new_map = random.choice(tuple(
-                        self.world.current_map.portal_index))
+                    new_map = random.choice(maps)
                     self.world.change_map(new_map)
                 else:
                     log.info("'{}' is not a wizard spell.".format(command))
