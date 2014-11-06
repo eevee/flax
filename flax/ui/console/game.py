@@ -102,9 +102,9 @@ class CellWidget(urwid.Widget):
     _sizing = {'box'}
     _selectable = True
 
-    # Number of rows/columns that must exist between the player and the edge of
-    # the map
-    MAP_MARGIN = 4
+    # Proportion of the map that must be visible in all directions from the
+    # player.  Should probably be smaller than 0.5.
+    MAP_MARGIN = 0.2
 
     def __init__(self, world):
         super().__init__()
@@ -120,6 +120,11 @@ class CellWidget(urwid.Widget):
 
         Returns a new `Span`.
         """
+        # If the entire map fits within the viewport, just show the whole
+        # thing, centered within the available space.
+        if len(bounds) <= width:
+            return bounds.scale(width)
+
         # The goal here is to scroll the map /as little as possible/, to reduce
         # the changes we'll have to write to the terminal.  Reduces flicker,
         # helps with lag when played over a network, and lets the player move
@@ -135,23 +140,22 @@ class CellWidget(urwid.Widget):
 
         # 2. If the player is no longer within the map view (excluding the
         # border of MAP_MARGIN), shift the view towards the player.
-        # BUT!  Avoid having needless space on the bottom and right, and avoid
-        # having ANY space on the top and left.
-
-        # Shrink the margin so that it's less than half the viewport.  So if
-        # MAP_MARGIN is 4, but the viewport is only 6 wide, cut it down to 2.
-        margin = min(self.MAP_MARGIN, (width - 1) // 2)
-
         # Need to move the viewport by the distance from the left margin to the
         # player, if that distance is < 0, and reverse for the right margin
+        margin = int(self.MAP_MARGIN * width + 0.99)
         viewport = viewport.shift_into_view(pos, margin=margin)
 
-        # We never want empty space on the leading side, so start cannot go
-        # below map.start (0).  We want to /avoid/ empty space on the trailing
-        # side, so end cannot go above map.end...  unless the map is smaller
-        # than the viewport, in which case it can go until map.start + width.
-        move = max(0, bounds.start - viewport.start)
-        move = min(move, max(bounds.end, bounds.start + width) - viewport.end)
+        # If there's any empty space left, shift the map to fill it.  (This can
+        # never produce space on the other side, because we already checked
+        # for a map smaller than the viewport above.)
+        leading = viewport.end - bounds.end
+        trailing = bounds.start - viewport.start
+        if leading > 0:
+            move = - leading
+        elif trailing > 0:
+            move = trailing
+        else:
+            move = 0
 
         return viewport + move
 
