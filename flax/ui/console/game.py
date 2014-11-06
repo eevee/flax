@@ -444,13 +444,13 @@ class FlaxWidget(urwid.WidgetWrap):
             event = self.world.player_action_from_direction(Direction.left)
         elif key == 'right' or key == '6':
             event = self.world.player_action_from_direction(Direction.right)
-        elif key == '1':
+        elif key == 'end' or key == '1':
             event = self.world.player_action_from_direction(Direction.down_left)
-        elif key == '3':
+        elif key == 'page down' or key == '3':
             event = self.world.player_action_from_direction(Direction.down_right)
-        elif key == '7':
+        elif key == 'home' or key == '7':
             event = self.world.player_action_from_direction(Direction.up_left)
-        elif key == '9':
+        elif key == 'page up' or key == '9':
             event = self.world.player_action_from_direction(Direction.up_right)
         elif key == '>':
             event = Descend(self.world.player)
