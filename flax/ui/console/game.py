@@ -348,7 +348,7 @@ class WizardPrompt(urwid.WidgetWrap):
             return
 
         if key == 'enter':
-            self._emit('close-overlay')
+            self._emit('close-overlay', self._w.edit_text)
         elif key == 'esc':
             self._emit('close-overlay')
 
@@ -392,7 +392,24 @@ class FlaxWidget(urwid.WidgetWrap):
             return
 
         if key == '^':
-            self.overlay.change_overlay(WizardPrompt())
+            # TODO the obvious disconnect between launching the prompt and
+            # getting the value back bothers me a bit here.  maybe command
+            # actions should become functions, which can optionally `yield`...
+            def wizard(command=None):
+                if not command:
+                    return
+
+                if command == 'down':
+                    import random
+                    if not self.world.current_map.portal_index:
+                        log.info("No down stairs here.")
+                        return
+                    new_map = random.choice(tuple(
+                        self.world.current_map.portal_index))
+                    self.world.change_map(new_map)
+                else:
+                    log.info("'{}' is not a wizard spell.".format(command))
+            self.overlay.change_overlay(WizardPrompt(), onclose=wizard)
             return
 
         from flax.event import Ascend

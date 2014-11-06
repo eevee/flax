@@ -72,9 +72,16 @@ class ToggleableOverlay(urwid.Overlay):
 
     def _close_handler(self, widget, *args):
         urwid.disconnect_signal(widget, 'close-overlay', self._close_handler)
+        if self._onclose:
+            self._onclose(*args)
+
         self.change_overlay(None)
 
-    def change_overlay(self, widget, **kwargs):
+    _onclose = None
+
+    def change_overlay(self, widget, onclose=None, **kwargs):
+        self._onclose = onclose
+
         if widget:
             urwid.disconnect_signal(widget, 'close-overlay', self._close_handler)
             urwid.connect_signal(widget, 'close-overlay', self._close_handler)
