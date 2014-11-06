@@ -305,7 +305,7 @@ class InventoryItem(urwid.WidgetWrap):
 
 
 class InventoryMenu(urwid.WidgetWrap):
-    signals = ['close']
+    signals = ['close-overlay']
 
     def __init__(self, player):
         walker = urwid.SimpleListWalker([])
@@ -327,9 +327,30 @@ class InventoryMenu(urwid.WidgetWrap):
             return
 
         if key == 'esc':
-            self._emit('close')
+            self._emit('close-overlay')
         elif key == 'q':
-            self._emit('close')
+            self._emit('close-overlay')
+
+        # Don't let any keypresses bubble back up to the top widget, which
+        # handles all the usual game controls!
+        return
+
+
+class WizardPrompt(urwid.WidgetWrap):
+    signals = ['close-overlay']
+
+    def __init__(self):
+        super().__init__(urwid.Edit("Wizard command: "))
+
+    def keypress(self, size, key):
+        key = super().keypress(size, key)
+        if not key:
+            return
+
+        if key == 'enter':
+            self._emit('close-overlay')
+        elif key == 'esc':
+            self._emit('close-overlay')
 
         # Don't let any keypresses bubble back up to the top widget, which
         # handles all the usual game controls!
@@ -367,11 +388,11 @@ class FlaxWidget(urwid.WidgetWrap):
 
         if key == 'i':
             inventory = InventoryMenu(self.world.player)
-            def close(widget, *args):
-                log.debug("well at least we got some args {!r}".format(args))
-                self.overlay.change_overlay(None)
-            urwid.connect_signal(inventory, 'close', close)
             self.overlay.change_overlay(inventory)
+            return
+
+        if key == '^':
+            self.overlay.change_overlay(WizardPrompt())
             return
 
         from flax.event import Ascend

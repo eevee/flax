@@ -24,8 +24,11 @@ class ToggleableOverlay(urwid.Overlay):
     If the top widget is removed, focus passes to the bottom widget.
     """
     def __init__(self, bottom_w):
-        # TODO uhh what are good defaults??
-        super().__init__(None, bottom_w, align='center', width=('relative', 90), valign='middle', height=('relative', 90))
+        super().__init__(
+            None, bottom_w,
+            # These get replaced every time; just need some sane defaults
+            align='center', valign='middle', height='pack', width='pack',
+        )
 
     def selectable(self):
         return self.focus.selectable()
@@ -67,6 +70,35 @@ class ToggleableOverlay(urwid.Overlay):
 
     ### New APIs
 
-    def change_overlay(self, widget):
+    def _close_handler(self, widget, *args):
+        urwid.disconnect_signal(widget, 'close-overlay', self._close_handler)
+        self.change_overlay(None)
+
+    def change_overlay(self, widget, **kwargs):
+        if widget:
+            urwid.disconnect_signal(widget, 'close-overlay', self._close_handler)
+            urwid.connect_signal(widget, 'close-overlay', self._close_handler)
+
+            if 'box' in widget.sizing():
+                # A box is probably a popup, so center it
+                defaults = dict(
+                    align='center',
+                    valign='middle',
+                    width=('relative', 90),
+                    height=('relative', 90),
+                )
+            else:
+                # Otherwise it's probably a prompt or something, so stick it at
+                # the bottom
+                defaults = dict(
+                    align='left',
+                    valign='bottom',
+                    width=('relative', 100),
+                    height='pack',
+                )
+
+            defaults.update(kwargs)
+            self.set_overlay_parameters(**defaults)
+
         self.top_w = widget
         self._invalidate()
