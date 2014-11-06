@@ -19,6 +19,7 @@ PALETTE = [
     # high colors: 0 6 8 a d f, plus g0 .. g100 (24 of them)
 
     # UI
+    ('ui-dividers', 'dark gray', 'default', None, 'g30', 'default'),
     ('message-old', 'dark gray', 'default', None, '#666', 'default'),
     ('message-fresh', 'white', 'default', None, '#fff', 'default'),
     ('inventory-default', 'default', 'default', None, 'default', 'default'),
@@ -365,12 +366,20 @@ class FlaxWidget(urwid.WidgetWrap):
         self.status_widget = PlayerStatusWidget(world.player)
         self.log_widget = LogWidget()
 
-        main_widget = urwid.Pile([
-            urwid.Columns([
+        main_widget = urwid.Columns([
+            urwid.Pile([
                 self.world_widget,
-                (20, self.status_widget),
+                (1, urwid.AttrMap(urwid.SolidFill('─'), 'ui-dividers')),
+                (10, self.log_widget),
             ]),
-            (10, self.log_widget),
+            # Copy the layout of the above Pile, so the T piece is in the right
+            # place
+            (1, urwid.Pile([
+                urwid.AttrMap(urwid.SolidFill('│'), 'ui-dividers'),
+                (1, urwid.AttrMap(urwid.SolidFill('┤'), 'ui-dividers')),
+                (10, urwid.AttrMap(urwid.SolidFill('│'), 'ui-dividers')),
+            ])),
+            (20, self.status_widget),
         ])
 
         self.overlay = ToggleableOverlay(main_widget)
