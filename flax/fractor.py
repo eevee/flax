@@ -5,11 +5,11 @@ import random
 from flax.component import Breakable, IPhysics, Empty
 import flax.entity as e
 from flax.entity import (
-    Entity, CaveWall, Wall, Floor, Tree, Grass, CutGrass, Salamango, Armor,
+    Entity, CaveWall, Floor, Tree, Grass, CutGrass, Salamango, Armor,
     Potion, StairsDown, StairsUp,
     KadathGate
 )
-from flax.geometry import Blob, Direction, Point, Rectangle, Size
+from flax.geometry import Blob, Direction, Point, Rectangle, Size, Span
 from flax.map import Map
 from flax.noise import discrete_perlin_noise_factory
 
@@ -365,28 +365,30 @@ class PerlinFractor(Fractor):
         return
         '''
 
+        # Build some Blob internals representing the two halves of the river.
+        left_side = {}
+        right_side = {}
+        river = {}
+
         center_factory = discrete_perlin_noise_factory(
             self.region.height, resolution=3)
         width_factory = discrete_perlin_noise_factory(
             self.region.height, resolution=6, octaves=2)
-        center0 = self.region.left + self.region.width / 2
-        center = center0
-        crossable_spans = set()
+        center = random_normal_int(
+            self.region.center().x, self.region.width / 4 / 3)
         for y in self.region.range_height():
             center += (center_factory(y) - 0.5) * 3
             width = width_factory(y) * 2 + 5
             x0 = int(center - width / 2)
             x1 = int(x0 + width + 0.5)
-            for x in range(x0, x1):
+            for x in range(x0, x1 + 1):
                 self.map_canvas.set_architecture(Point(x, y), e.Water)
 
-            # XXX hardcoding the test from below...
-            if noise[Point(x0 - 1, y)] < 0.6 and noise[Point(x1 + 1, y)] < 0.6:
-                crossable_spans.add(y)
+            left_side[y] = (Span(self.region.left, x0 - 1),)
+            right_side[y] = (Span(x1 + 1, self.region.right),)
+            river[y] = (Span(x0, x1),)
 
-                if random.random() < 0.3:
-                    for x in range(x0, x1 + 1):
-                        self.map_canvas.set_architecture(Point(x, y), e.Bridge)
+        return Blob(left_side), Blob(river), Blob(right_side)
 
     def generate(self):
         # This noise is interpreted roughly as the inverse of "frequently
@@ -414,8 +416,46 @@ class PerlinFractor(Fractor):
                 arch = Tree
             self.map_canvas.set_architecture(point, arch)
 
-        self._generate_river(noise)
+        left_bank, river_blob, right_bank = self._generate_river(noise)
 
+        # Decide where bridges should go.  They can only cross where there's
+        # walkable space on both sides, so find all such areas.
+        # TODO maybe a nicer api for testing walkability here
+        # TODO this doesn't detect a walkable area on one side that has no
+        # walkable area on the other side, and tbh i'm not sure what to do in
+        # such a case anyway.  could forcibly punch a path through the trees, i
+        # suppose?  that's what i'll have to do anyway, right?
+        # TODO this will break if i ever add a loop in the river, but tbh i
+        # have no idea how to draw bridges in that case
+        new_block = True
+        start = None
+        end = None
+        blocks = []
+        for y, (span,) in river_blob.spans.items():
+            if self.map_canvas._arch_grid[Point(span.start - 1, y)] is not Tree and \
+                    self.map_canvas._arch_grid[Point(span.end + 1, y)] is not Tree:
+                if new_block:
+                    start = y
+                    end = y
+                    new_block = False
+                else:
+                    end = y
+            else:
+                if not new_block:
+                    blocks.append((start, end))
+                new_block = True
+        if not new_block:
+            blocks.append((start, end))
+
+        for start, end in blocks:
+            y = random_normal_range(start, end)
+            span = river_blob.spans[y][0]
+            local_minima.add(Point(span.start - 1, y))
+            local_minima.add(Point(span.end + 1, y))
+            for x in span:
+                self.map_canvas.set_architecture(Point(x, y), e.Bridge)
+
+        # Consider all local minima along the edges, as well.
         for x in self.region.range_width():
             for y in (self.region.top, self.region.bottom):
                 point = Point(x, y)
@@ -432,8 +472,26 @@ class PerlinFractor(Fractor):
                     local_minima.add(point)
 
         for point in local_minima:
-            self.map_canvas.set_architecture(point, e.Dirt)
+            if point not in river_blob:
+                self.map_canvas.set_architecture(point, e.Dirt)
 
+        for blob in (left_bank, right_bank):
+            paths = self.flood_valleys(blob, local_minima, noise)
+
+            for path_point in paths:
+                self.map_canvas.set_architecture(path_point, e.Dirt)
+
+        # Whoops time for another step: generating a surrounding cave wall.
+        for edge in Direction.orthogonal:
+            width = self.region.edge_length(edge)
+            wall_noise = discrete_perlin_noise_factory(width, resolution=6)
+            for n in self.region.edge_span(edge):
+                offset = int(wall_noise(n) * 4 + 1)
+                for m in range(offset):
+                    point = self.region.edge_point(edge, n, m)
+                    self.map_canvas.set_architecture(point, e.CaveWall)
+
+    def flood_valleys(self, region, goals, depthmap):
         # We want to connect all the minima with a forest path.
         # Let's flood the forest.  The algorithm is as follows:
         # - All the local minima are initally full of water, forming a set of
@@ -451,12 +509,14 @@ class PerlinFractor(Fractor):
         puddle_map = {}
         path_from_puddle = defaultdict(dict)
         paths = set()
-        for puddle, point in enumerate(local_minima):
+        for puddle, point in enumerate(goals):
+            if point not in region:
+                continue
             flooded[point] = puddle
             puddle_map[puddle] = puddle
         flood_order = sorted(
-            noise.keys() - flooded.keys(),
-            key=noise.__getitem__)
+            frozenset(region.iter_points()) - flooded.keys(),
+            key=depthmap.__getitem__)
         for point in flood_order:
             # Group any flooded neighbors by the puddle they're in.
             # puddle => [neighboring points...]
@@ -469,13 +529,17 @@ class PerlinFractor(Fractor):
             # Every point is either a local minimum OR adjacent to a point
             # lower than itself, by the very definition of "local minimum".
             # Thus there must be at least one adjacent puddle.
+            # TODO not so true any more...  maybe should determine local minima
+            # automatically here...
+            if not adjacent_puddles:
+                continue
             assert adjacent_puddles
 
             # Remember how to get from adjacent puddles to this point.
             # Only store the lowest adjacent point.
             for puddle, points in adjacent_puddles.items():
                 path_from_puddle[point][puddle] = min(
-                    points, key=noise.__getitem__)
+                    points, key=depthmap.__getitem__)
 
             flooded[point] = this_puddle = min(adjacent_puddles)
             if len(adjacent_puddles) > 1:
@@ -491,7 +555,7 @@ class PerlinFractor(Fractor):
                         for cand_puddle, cand_point in cand_paths.items():
                             if puddle_map[cand_puddle] == puddle and (
                                     next_point is None or
-                                    noise[cand_point] < noise[next_point]
+                                    depthmap[cand_point] < depthmap[next_point]
                             ):
                                 next_point = cand_point
                         path_point = next_point
@@ -507,10 +571,7 @@ class PerlinFractor(Fractor):
                 if len(frozenset(puddle_map.values())) == 1:
                     break
 
-        # And draw the path, at last.
-        for path_point in paths:
-            self.map_canvas.set_architecture(path_point, e.Dirt)
-
+        return paths
 
 def generate_caves(map_canvas, region, wall_tile, force_walls=(), force_floors=()):
     """Uses cellular automata to generate a cave system.

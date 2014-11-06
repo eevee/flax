@@ -32,7 +32,7 @@ class FloorPlan:
         self.maps = {}
         self.maps['map0'] = RuinFractor(Size(120, 30)).generate_map(down='map1')
         self.maps['map1'] = RuinedHallFractor(Size(120, 30)).generate_map(up='map0', down='map2')
-        self.maps['map2'] = PerlinFractor(Size(80, 24)).generate_map(up='map1', down='map3')
+        self.maps['map2'] = PerlinFractor(Size(150, 40)).generate_map(up='map1', down='map3')
         self.maps['map3'] = BinaryPartitionFractor(Size(80, 24), minimum_size=Size(10, 8)).generate_map(up='map2')
         self.current_map_name = None
         self.current_map = None

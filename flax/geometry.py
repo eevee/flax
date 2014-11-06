@@ -2,6 +2,14 @@ from collections import deque
 from enum import Enum
 
 
+class classproperty(object):
+    def __init__(self, f):
+        self.f = f
+
+    def __get__(self, obj, owner):
+        return self.f(owner)
+
+
 class Direction(Enum):
     up = (0, -1)
     up_right = (1, -1)
@@ -11,6 +19,14 @@ class Direction(Enum):
     down_left = (-1, 1)
     left = (-1, 0)
     up_left = (-1, -1)
+
+    @classproperty
+    def orthogonal(cls):
+        return frozenset((cls.up, cls.down, cls.left, cls.right))
+
+    @classproperty
+    def diagonal(cls):
+        return frozenset((cls.up_left, cls.up_right, cls.down_left, cls.down_right))
 
     def adjacent_to(self, other):
         return (
@@ -23,6 +39,8 @@ class Direction(Enum):
     @property
     def opposite(self):
         return Direction((- self.value[0], - self.value[1]))
+
+
 
 
 class Point(tuple):
@@ -252,6 +270,41 @@ class Rectangle(tuple):
     @property
     def horizontal_span(self):
         return Span(self.left, self.right)
+
+    def edge_length(self, edge):
+        if edge is Direction.up or edge is Direction.down:
+            return self.width
+        if edge is Direction.left or edge is Direction.right:
+            return self.height
+        raise ValueError("Expected an orthogonal direction")
+
+    def edge_span(self, edge):
+        if edge is Direction.up or edge is Direction.down:
+            return self.horizontal_span
+        if edge is Direction.left or edge is Direction.right:
+            return self.vertical_span
+        raise ValueError("Expected an orthogonal direction")
+
+    def edge_point(self, edge, parallel, orthogonal):
+        """Return a point, relative to a particular edge.
+
+        `parallel` is the absolute coordinate parallel to the given edge.  For
+        example, if `edge` is `Direction.top`, then `parallel` is the
+        x-coordinate.
+
+        `orthogonal` is the RELATIVE offset from the given edge, towards the
+        interior of the rectangle.  So for `Direction.top`, the y-coordinate is
+        ``self.top + orthogonal``.
+        """
+        if edge is Direction.up:
+            return Point(parallel, self.top + orthogonal)
+        elif edge is Direction.down:
+            return Point(parallel, self.bottom - orthogonal)
+        elif edge is Direction.left:
+            return Point(self.left + orthogonal, parallel)
+        elif edge is Direction.right:
+            return Point(self.right - orthogonal, parallel)
+        raise ValueError("Expected an orthogonal direction")
 
     def relative_point(self, relative_width, relative_height):
         """Find a point x% across the width and y% across the height.  The
