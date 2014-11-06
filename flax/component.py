@@ -438,7 +438,6 @@ class PortalDownstairs(Portal):
 
 @Descend.perform(PortalDownstairs)
 def do_descend_stairs(event, portal):
-    log.info("here we go")
     event.world.change_map(portal.destination)
 
 

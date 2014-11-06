@@ -543,7 +543,7 @@ def generate_caves(map_canvas, region, wall_tile, force_walls=(), force_floors=(
         if grid[point]:
             map_canvas.set_architecture(point, wall_tile)
         else:
-            map_canvas.set_architecture(point, e.Dirt)
+            map_canvas.set_architecture(point, e.CaveFloor)
 
 
 # TODO it would be slick to have a wizard menu with commands like "regenerate
@@ -685,6 +685,83 @@ class RuinFractor(Fractor):
                 self.map_canvas.set_architecture(room_center + direction, e.Pillar)
         else:
             super().place_portal(portal_type, destination)
+
+
+class RuinedHallFractor(Fractor):
+    def generate(self):
+        self.map_canvas.clear(CaveWall)
+
+        # First create a bunch of hallways and rooms.
+        # For now, just carve a big area, run a hallway through the middle, and
+        # divide either side into rooms.
+        area = Room.randomize(self.region, minimum_size=self.region.size // 2)
+        area.draw_to_canvas(self.map_canvas)
+
+        center = area.rect.center()
+        y0 = center.y - 2
+        y1 = center.y + 2
+        hallway = Rectangle(origin=Point(area.rect.left, center.y - 2), size=Size(area.rect.width, 5))
+        Room(hallway).draw_to_canvas(self.map_canvas)
+
+        top_space = area.rect.replace(bottom=hallway.top)
+        bottom_space = area.rect.replace(top=hallway.bottom)
+
+        for orig_space in (top_space, bottom_space):
+            space = orig_space
+            # This includes walls!
+            minimum_width = 7
+            # Note that the rooms overlap where they touch, so we subtract one
+            # from both the total width and the minimum width, in effect
+            # ignoring all the walls on one side
+            maximum_rooms = (space.width - 1) // (minimum_width - 1)
+            # The maximum number of rooms that will fit also affects how much
+            # wiggle room we're willing to have.  For example, if at most 3 rooms
+            # will fit, then generating 2 rooms is also reasonable.  But if 10
+            # rooms will fit, generating 2 rooms is a bit silly.  We'll arbitrarily
+            # use 1/3 the maximum as the minimum.  (Plus 1, to avoid rounding down
+            # to zero.)
+            minimum_rooms = maximum_rooms // 6 + 1
+            num_rooms = random_normal_range(minimum_rooms, maximum_rooms)
+
+            # TODO normal distribution doesn't have good results here.  think
+            # more about how people use rooms -- often many of similar size,
+            # with some exceptions.  also different shapes, bathrooms or
+            # closets nestled together, etc.
+            rooms = []
+            while num_rooms > 1:
+                # Now we want to divide a given amount of space into n chunks, where
+                # the size of each chunk is normally-distributed.  I have no idea how
+                # to do this in any strict mathematical sense, so instead we'll just
+                # carve out one room at a time and hope for the best.
+                min_width = minimum_width
+                avg_width = (space.width - 1) // num_rooms + 1
+                max_width = space.width - (minimum_width - 1) * (num_rooms - 1)
+                room_width = random_normal_int(avg_width, min(max_width - avg_width, avg_width - min_width) // 3)
+
+                room = space.replace(right=space.left + room_width - 1)
+                rooms.append(room)
+                space = space.replace(left=room.right)
+                num_rooms -= 1
+
+            rooms.append(space)
+
+            for rect in rooms:
+                Room(rect).draw_to_canvas(self.map_canvas)
+
+            if orig_space is top_space:
+                top_rooms = rooms
+            else:
+                bottom_rooms = rooms
+
+            # Add some doors for funsies.
+            for rect in rooms:
+                x = random.randrange(rect.left + 1, rect.right - 1)
+                if orig_space is top_space:
+                    y = rect.bottom
+                else:
+                    y = rect.top
+                self.map_canvas.set_architecture(Point(x, y), e.Door)
+
 
 
 class MapLayout:

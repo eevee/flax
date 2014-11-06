@@ -212,8 +212,8 @@ class Sprite(Enum):
     fill = '█'
     halftone = '▒'
     floor = '·'
-    water = '⧛'
-    bridge = '⬮'
+    water = '⌇'  # ⦚ ⧛
+    bridge = '⫼'
     speckle = '░'
     pillar = '♊'
     fence = '⌗'
@@ -245,14 +245,16 @@ class Sprite(Enum):
     door_open = '⎕'
     door_locked = '⍯'
     throne = '♄'
-    sign = '🜿'
+    sign = '⚲'
 
     tree = '🠝'
     pine_tree = '⸙'
-    grass = '⁖'
+    grass = '·'  # ⋮ ⁖
     tall_grass = 'ʬ'
+    small_flower = '⚘'
+    big_flower = '❀'
 
-    flask = 'ð'
+    flask = '⚱'  # ð
     gem = '♦'
     key = '⚷'
     crate = '▥'
@@ -353,8 +355,13 @@ CutGrass = Architecture(
 )
 Dirt = Architecture(
     Empty,
-    Render(sprite=Sprite.floor, color='dirt'),
+    Render(sprite=Sprite.speckle, color='dirt'),
     name='dirt',
+)
+CaveFloor = Architecture(
+    Empty,
+    Render(sprite=Sprite.floor, color='dirt'),
+    name='cave floor',
 )
 
 Door = Architecture(
