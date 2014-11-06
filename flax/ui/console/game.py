@@ -282,18 +282,42 @@ class PlayerStatusWidget(urwid.Pile):
         self._invalidate()
 
 
+def entity_to_text_widget(entity):
+    render = IRender(entity)
+    glyph, attr = render.sprite, render.color
+    return urwid.Text([
+        (attr, glyph.value),
+        ' ',
+        entity.type.name,
+    ])
+
+
+class TileContentsWidget(urwid.Pile):
+    # TODO if there's space pressure, this should be the first thing to go
+    _selectable = False
+
+    def __init__(self):
+        super().__init__([urwid.SolidFill(' ')])
+
+    def update_from_tile(self, tile):
+        widgets = []
+        widgets.append((urwid.SolidFill(' '), self.options('weight', 1)))
+
+        for entity in tile.entities:
+            widget = entity_to_text_widget(entity)
+            # TODO i have to use "pack" here because Text is a flow widget
+            # only, but i actually want to force it to never wrap
+            widgets.append((widget, self.options('pack')))
+
+        self.contents = widgets
+
+
 class InventoryItem(urwid.WidgetWrap):
     signals = ['fire', 'return']
 
     def __init__(self, item):
         self.item = item
-        render = IRender(item)
-        glyph, attr = render.sprite, render.color
-        widget = urwid.Text([
-            (attr, glyph.value),
-            ' ',
-            item.type.name,
-        ])
+        widget = entity_to_text_widget(item)
         widget = urwid.AttrMap(widget, 'inventory-default', 'inventory-selected')
         super().__init__(widget)
 
@@ -368,9 +392,13 @@ class FlaxWidget(urwid.WidgetWrap):
 
         self.world_widget = CellWidget(world)
         self.status_widget = PlayerStatusWidget(world.player)
+        self.tile_widget = TileContentsWidget()
+        self.tile_widget.update_from_tile(
+            self.world.current_map.find(self.world.player))
         self.log_widget = LogWidget()
 
         main_widget = urwid.Columns([
+            # Main area
             urwid.Pile([
                 self.world_widget,
                 (1, urwid.AttrMap(urwid.SolidFill('─'), 'ui-dividers')),
@@ -383,7 +411,11 @@ class FlaxWidget(urwid.WidgetWrap):
                 (1, urwid.AttrMap(urwid.SolidFill('┤'), 'ui-dividers')),
                 (10, urwid.AttrMap(urwid.SolidFill('│'), 'ui-dividers')),
             ])),
-            (20, self.status_widget),
+            # Right sidebar
+            (20, urwid.Pile([
+                self.status_widget,
+                self.tile_widget,
+            ])),
         ])
 
         self.overlay = ToggleableOverlay(main_widget)
@@ -493,6 +525,10 @@ class FlaxWidget(urwid.WidgetWrap):
         # bogus key
         # TODO should probably use the event loop?  right?
         self.world.advance()
+
+        # TODO unclear when the right time to update this is
+        self.tile_widget.update_from_tile(
+            self.world.current_map.find(self.world.player))
 
         self.status_widget.update()
         self.world_widget._invalidate()
