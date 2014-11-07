@@ -17,7 +17,7 @@ import zope.interface as zi
 from flax.event import PickUp
 from flax.event import MeleeAttack, Damage, Die
 from flax.event import Ascend, Descend, Walk
-from flax.event import Open
+from flax.event import Open, Unlock
 from flax.event import Equip
 from flax.event import Unequip
 
@@ -322,14 +322,18 @@ class Render(Component, interface=IRender):
 
 
 class OpenRender(Component, interface=IRender):
-    def __typeinit__(self, *, open, closed):
+    def __typeinit__(self, *, open, closed, locked):
         self.open = open
         self.closed = closed
+        self.locked = locked
 
     @property
     def sprite(self):
         # TODO what if it doesn't exist
-        if IOpenable(self.entity).open:
+        if ILockable(self.entity).locked:
+            return self.locked[0]
+        # TODO what if it doesn't exist
+        elif IOpenable(self.entity).open:
             return self.open[0]
         else:
             return self.closed[0]
@@ -337,7 +341,10 @@ class OpenRender(Component, interface=IRender):
     @property
     def color(self):
         # TODO what if it doesn't exist
-        if IOpenable(self.entity).open:
+        if ILockable(self.entity).locked:
+            return self.locked[1]
+        # TODO what if it doesn't exist
+        elif IOpenable(self.entity).open:
             return self.open[1]
         else:
             return self.closed[1]
@@ -467,6 +474,37 @@ class Openable(Component, interface=IOpenable):
 @Open.perform(Openable)
 def do_open(event, openable):
     openable.open = True
+
+
+class ILockable(IComponent):
+    locked = static_attribute("""Whether I'm currently locked.""")
+
+
+class Lockable(Component, interface=ILockable):
+    def __init__(self, *, locked=False):
+        self.locked = locked
+
+
+# TODO maybe this merits a check rule?  maybe EVERYTHING does.
+# TODO only if closed
+@Unlock.perform(Lockable)
+def do_unlock(event, lockable):
+    # TODO check that the key is a key, player holds it, etc.  (inform has
+    # touchability rules for all this...)
+    lockable.locked = False
+
+    # Destroy the key.  TODO: need to be able to tell an entity that i'm taking
+    # it away from whatever owns it, whatever that may mean!  inform's "now"
+    # does this
+    IContainer(event.actor).inventory.remove(event.agent)
+
+
+
+@Open.check(Lockable)
+def cant_open_locked_things(event, lockable):
+    if lockable.locked:
+        log.info("it's locked")
+        event.cancel()
 
 
 # -----------------------------------------------------------------------------

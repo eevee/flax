@@ -203,7 +203,6 @@ class Fractor:
         self.map_canvas.add_item(points[3], Potion)
         self.map_canvas.add_item(points[4], e.Gem)
         self.map_canvas.add_item(points[5], e.Crate)
-        self.map_canvas.set_architecture(points[6], e.Door)
 
     def place_portal(self, portal_type, destination):
         from flax.component import Portal
@@ -573,6 +572,15 @@ class PerlinFractor(Fractor):
 
         return paths
 
+    def place_stuff(self):
+        super().place_stuff()
+        assert self.map_canvas.floor_spaces, \
+            "can't place player with no open spaces"
+
+        floor = self.map_canvas.floor_spaces
+        points = random.sample(list(floor), 1)
+        self.map_canvas.add_item(points[0], e.Key)
+
 def generate_caves(map_canvas, region, wall_tile, force_walls=(), force_floors=()):
     """Uses cellular automata to generate a cave system.
 
@@ -767,6 +775,7 @@ class RuinedHallFractor(Fractor):
         top_space = area.rect.replace(bottom=hallway.top)
         bottom_space = area.rect.replace(top=hallway.bottom)
 
+        rooms = []
         for orig_space in (top_space, bottom_space):
             space = orig_space
             # This includes walls!
@@ -788,7 +797,6 @@ class RuinedHallFractor(Fractor):
             # more about how people use rooms -- often many of similar size,
             # with some exceptions.  also different shapes, bathrooms or
             # closets nestled together, etc.
-            rooms = []
             while num_rooms > 1:
                 # Now we want to divide a given amount of space into n chunks, where
                 # the size of each chunk is normally-distributed.  I have no idea how
@@ -806,22 +814,22 @@ class RuinedHallFractor(Fractor):
 
             rooms.append(space)
 
-            for rect in rooms:
-                Room(rect).draw_to_canvas(self.map_canvas)
+        for rect in rooms:
+            Room(rect).draw_to_canvas(self.map_canvas)
 
-            if orig_space is top_space:
-                top_rooms = rooms
+        from flax.component import Lockable
+
+        # Add some doors for funsies.
+        locked_room = random.choice(rooms)
+        for rect in rooms:
+            x = random.randrange(rect.left + 1, rect.right - 1)
+            if rect.top > hallway.top:
+                side = Direction.down
             else:
-                bottom_rooms = rooms
-
-            # Add some doors for funsies.
-            for rect in rooms:
-                x = random.randrange(rect.left + 1, rect.right - 1)
-                if orig_space is top_space:
-                    y = rect.bottom
-                else:
-                    y = rect.top
-                self.map_canvas.set_architecture(Point(x, y), e.Door)
+                side = Direction.up
+            point = rect.edge_point(side.opposite, x, 0)
+            door = e.Door(Lockable(locked=rect is locked_room))
+            self.map_canvas.set_architecture(point, door)
 
 
 

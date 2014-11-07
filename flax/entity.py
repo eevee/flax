@@ -9,6 +9,7 @@ from flax.component import Solid, Empty, DoorPhysics
 from flax.component import Container
 from flax.component import Portable
 from flax.component import Openable
+from flax.component import Lockable
 from flax.component import Bodied
 from flax.component import Equipment
 from flax.component import GenericAI, PlayerIntelligence
@@ -366,8 +367,9 @@ CaveFloor = Architecture(
 
 Door = Architecture(
     DoorPhysics,
-    OpenRender(open=(Sprite.door_open, 'dirt'), closed=(Sprite.door_closed, 'dirt')),
+    OpenRender(locked=(Sprite.door_locked, 'dirt'), open=(Sprite.door_open, 'dirt'), closed=(Sprite.door_closed, 'dirt')),
     Openable,
+    Lockable,
     name='door',
 )
 
@@ -423,6 +425,8 @@ Salamango = Creature(
 # Items
 
 Item = partial(EntityType, Portable, layer=Layer.item)
+
+Key = Item(Render(sprite=Sprite.key, color='default'), name='key')
 
 Gem = Item(Render(sprite=Sprite.gem, color='default'), name='gemstone')
 

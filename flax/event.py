@@ -143,6 +143,15 @@ class Open(Event):
         # TODO complain unless actor is next to target?
 
 
+class Unlock(Event):
+    def __init__(self, actor, target, agent):
+        self.actor = actor
+        self.target = target
+        self.agent = agent
+
+        # TODO complain unless actor is next to target?
+
+
 class PickUp(Event):
     def __init__(self, actor, item):
         self.actor = actor

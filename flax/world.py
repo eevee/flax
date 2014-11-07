@@ -1,6 +1,7 @@
 from collections import deque
 
-from flax.component import IActor, IPhysics, IOpenable
+from flax.component import IActor, IPhysics, IContainer, IOpenable, ILockable
+from flax.entity import Key
 from flax.entity import Player
 from flax.fractor import BinaryPartitionFractor
 from flax.fractor import PerlinFractor
@@ -33,7 +34,8 @@ class FloorPlan:
         self.maps['map0'] = RuinFractor(Size(120, 30)).generate_map(down='map1')
         self.maps['map1'] = RuinedHallFractor(Size(120, 30)).generate_map(up='map0', down='map2')
         self.maps['map2'] = PerlinFractor(Size(150, 40)).generate_map(up='map1', down='map3')
-        self.maps['map3'] = BinaryPartitionFractor(Size(80, 24), minimum_size=Size(10, 8)).generate_map(up='map2')
+        self.maps['map3'] = PerlinFractor(Size(60, 30)).generate_map(up='map2')
+        #self.maps['map3'] = BinaryPartitionFractor(Size(80, 24), minimum_size=Size(10, 8)).generate_map(up='map2')
         self.current_map_name = None
         self.current_map = None
 
@@ -106,7 +108,7 @@ class World:
         intends to make in that direction.  i.e., if the space ahead of the
         player is empty, return `Walk`.
         """
-        from flax.event import Walk, MeleeAttack, Open
+        from flax.event import Walk, MeleeAttack, Open, Unlock
 
         # TODO i sure do this a lot!  maybe write a method for it!
         new_pos = self.current_map.find(self.player).position + direction
@@ -117,13 +119,15 @@ class World:
         if tile.creature:
             return MeleeAttack(self.player, direction)
 
-        try:
-            openable = IOpenable(tile.architecture)
-        except KeyError:
-            pass
-        else:
-            if not openable.open:
-                return Open(self.player, tile.architecture)
+        arch = tile.architecture
+
+        if ILockable in arch and ILockable(arch).locked:
+            key = next((item for item in IContainer(self.player).inventory if item.isa(Key)), None)
+            if key:
+                return Unlock(self.player, arch, key)
+
+        if IOpenable in arch and not IOpenable(arch).open:
+            return Open(self.player, arch)
 
         return Walk(self.player, direction)
 
