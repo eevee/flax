@@ -53,6 +53,9 @@ PALETTE = [
     ('potion', 'light magenta', 'default', None, '#f6f', 'default'),
     ('wood', 'brown', 'default', None, '#960', 'default'),
 
+    # Materials
+    ('gold', 'yellow', 'default', None, '#ff6', 'default'),
+
     # Debug
     ('stdout', 'light gray', 'default', None, '#aaa', 'default'),
     ('stderr', 'light red', 'default', None, '#d66', 'default'),

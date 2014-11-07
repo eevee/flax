@@ -264,6 +264,7 @@ class Sprite(Enum):
     shield = '⛉'
     ring = '♁'
     amulet = '♉'
+    crown = '♔'
 
     player = '☻'
     lizard = ':'
@@ -408,7 +409,7 @@ Ruin = Architecture(
 
 Creature = partial(EntityType, Solid, Container, Bodied, layer=Layer.creature)
 Player = Creature(
-    Combatant(strength=3, health=10),
+    Combatant(strength=3, health=20),
     PlayerIntelligence,
     Render(sprite=Sprite.player, color='player'),
     name='you',
@@ -429,6 +430,7 @@ Item = partial(EntityType, Portable, layer=Layer.item)
 Key = Item(Render(sprite=Sprite.key, color='default'), name='key')
 
 Gem = Item(Render(sprite=Sprite.gem, color='default'), name='gemstone')
+Crown = Item(Render(sprite=Sprite.crown, color='gold'), name='crown')
 
 # TODO implement a potion!
 # Potion = Item(UsablePotion, name='potion', tmp_rendering=('ð', 'default'))

@@ -1,5 +1,7 @@
 from collections import defaultdict
+from functools import reduce
 import math
+import operator
 import random
 
 from flax.component import Breakable, IPhysics, Empty
@@ -831,6 +833,56 @@ class RuinedHallFractor(Fractor):
             door = e.Door(Lockable(locked=rect is locked_room))
             self.map_canvas.set_architecture(point, door)
 
+        self.hallway_area = Blob.from_rectangle(hallway)
+        self.locked_area = Blob.from_rectangle(locked_room)
+        self.rooms_area = reduce(operator.add, (Blob.from_rectangle(rect) for rect in rooms if rect is not locked_room))
+
+
+    def place_stuff(self):
+        # TODO having to override this per room is becoming increasingly
+        # tedious and awkward and copy-pastey.
+        assert self.map_canvas.floor_spaces, \
+            "can't place player with no open spaces"
+
+        floor_spaces = self.map_canvas.floor_spaces
+        room_floors = floor_spaces & frozenset(self.rooms_area.iter_points())
+        hall_floors = floor_spaces & frozenset(self.hallway_area.iter_points())
+        lock_floors = floor_spaces & frozenset(self.locked_area.iter_points())
+
+        points = random.sample(list(room_floors), 8)
+        self.map_canvas.set_creature(points[0], Salamango)
+        self.map_canvas.set_creature(points[1], Salamango)
+        self.map_canvas.set_creature(points[2], Salamango)
+        self.map_canvas.add_item(points[3], e.Armor)
+        self.map_canvas.add_item(points[4], e.Potion)
+        self.map_canvas.add_item(points[5], e.Potion)
+        self.map_canvas.add_item(points[6], e.Gem)
+        self.map_canvas.add_item(points[7], e.Crate)
+
+        points = random.sample(list(lock_floors), 1)
+        self.map_canvas.add_item(points[0], e.Crown)
+
+    def place_portal(self, portal_type, destination):
+        # TODO and this part is even worse yes
+        from flax.component import Portal
+        portal = portal_type(Portal(destination=destination))
+
+        # TODO not guaranteed
+        assert self.map_canvas.floor_spaces, \
+            "can't place portal with no open spaces"
+
+        floor_spaces = self.map_canvas.floor_spaces
+        room_floors = floor_spaces & frozenset(self.rooms_area.iter_points())
+        hall_floors = floor_spaces & frozenset(self.hallway_area.iter_points())
+        lock_floors = floor_spaces & frozenset(self.locked_area.iter_points())
+
+        if portal_type is e.StairsDown:
+            # Down stairs go in an unlocked room
+            point = random.choice(list(room_floors))
+        else:
+            # Up stairs go in the hallway
+            point = random.choice(list(hall_floors))
+        self.map_canvas.set_architecture(point, portal)
 
 
 class MapLayout:
