@@ -594,7 +594,7 @@ def generate_caves(map_canvas, region, wall_tile, force_walls=(), force_floors=(
     for point in force_floors:
         base_grid[point] = False
 
-    grid = {point: random.random() < 0.45 for point in region.iter_points()}
+    grid = {point: random.random() < 0.40 for point in region.iter_points()}
     grid.update(base_grid)
     for generation in range(5):
         next_grid = base_grid.copy()
@@ -734,7 +734,8 @@ class RuinFractor(Fractor):
         # TODO this should exit.  also confirm.  should be part of the ladder
         # entity?  also, world doesn't place you here.  maybe the map itself
         # should know this?
-        ladder = e.Ladder(Portal(destination='nowhere'))
+        # TODO lol this is such a stupid hack
+        ladder = e.Ladder(Portal(destination='__exit__'))
         self.map_canvas.set_architecture(points[0], ladder)
 
         self.map_canvas.add_item(points[1], e.Gem)

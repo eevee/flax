@@ -3,6 +3,7 @@ import logging
 
 import urwid
 
+from flax.component import GameOver
 from flax.component import IRender
 from flax.geometry import Rectangle
 from flax.geometry import Size
@@ -527,7 +528,14 @@ class FlaxWidget(urwid.WidgetWrap):
         # TODO um, shouldn't really advance the world if the player pressed a
         # bogus key
         # TODO should probably use the event loop?  right?
-        self.world.advance()
+        try:
+            self.world.advance()
+        except GameOver:
+            # TODO is there a slightly cleaner way or better place to convert
+            # GameOver into a main loop exit?  (consider that eventually a game
+            # end should be handled by the UI, not by crashing and burning.)
+            raise urwid.ExitMainLoop
+
 
         # TODO unclear when the right time to update this is
         self.tile_widget.update_from_tile(

@@ -1,6 +1,7 @@
 from collections import deque
 
 from flax.component import IActor, IPhysics, IContainer, IOpenable, ILockable
+from flax.component import GameOver
 from flax.entity import Key
 from flax.entity import Player
 from flax.fractor import BinaryPartitionFractor
@@ -80,6 +81,8 @@ class World:
     player action handling.  Eventually will control loading/saving, generating
     new maps, inter-map movement, gameplay configuration, and the like.
     """
+    obituary = None
+
     def __init__(self):
         # There can only be one player object.  We own it.
         self.player = Player()
@@ -95,6 +98,22 @@ class World:
         return self.floor_plan.current_map
 
     def change_map(self, map_name):
+        # TODO this is so stupidly special-casey, but i'm not really sure how
+        # or when a Win should be fired.  i'd copy what Die does, but that's
+        # kinda broken too, lol.  maybe the ladder should contain this
+        # logic?
+        if map_name == '__exit__':
+            # TODO starting to look like IContainer needs a .has()
+            from flax.entity import Crown
+            if any(item.isa(Crown) for item in IContainer(self.player).inventory):
+                raise GameOver(
+                    "you found the Crown of Meeting Expectations and escaped "
+                    "the dungeon!  good for you, seriously.",
+                    success=True)
+            else:
+                raise GameOver(
+                    "you leave empty-handed.  well, okay then.", success=True)
+
         # TODO refund time?  or only eat it after the events succeed
         self.event_queue.clear()
 
@@ -132,27 +151,35 @@ class World:
         return Walk(self.player, direction)
 
     def advance(self):
-        # Perform a turn for every actor on the map
-        # TODO this feels slightly laggier, i think, since the player's action
-        # now happens kind of /whenever/.  might help to have a persistent list
-        # of actors held by the map.  also to have a circular queue and just
-        # wait when we get to the player and there's nothing to do.
-        actors = []
-        for tile in self.current_map.tiles.values():
-            # TODO what if things other than creatures can think??  fuck
-            if tile.creature:
-                actors.append(tile.creature)
+        # Perform a turn for every actor on the map.  This is where stuff
+        # actually happens.
 
-        # TODO should go in turn order
-        for actor in actors:
-            # TODO gross hack, that will hopefully just go away when this works
-            # better  :(  if an earlier run of this loop caused an actor to no
-            # longer be on the map, we shouldn't try to make it act
-            if actor not in self.current_map.entity_positions:
-                continue
+        try:
+            # TODO this feels slightly laggier, i think, since the player's
+            # action now happens kind of /whenever/.  might help to have a
+            # persistent list of actors held by the map.  also to have a
+            # circular queue and just wait when we get to the player and
+            # there's nothing to do.
+            actors = []
+            for tile in self.current_map.tiles.values():
+                # TODO what if things other than creatures can think??  fuck
+                if tile.creature:
+                    actors.append(tile.creature)
 
-            IActor(actor).act(self)
-            self.drain_event_queue()
+            # TODO should go in turn order
+            for actor in actors:
+                # TODO gross hack, that will hopefully just go away when this
+                # works better  :(  if an earlier run of this loop caused an
+                # actor to no longer be on the map, we shouldn't try to make it
+                # act
+                if actor not in self.current_map.entity_positions:
+                    continue
+
+                IActor(actor).act(self)
+                self.drain_event_queue()
+        except GameOver as obit:
+            self.obituary = obit
+            raise
 
     def drain_event_queue(self):
         while self.event_queue:

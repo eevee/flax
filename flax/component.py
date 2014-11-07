@@ -29,6 +29,13 @@ from flax.relation import Wearing
 log = logging.getLogger(__name__)
 
 
+class GameOver(Exception):
+    def __init__(self, message, *, success):
+        super().__init__(message, success)
+        self.message = message
+        self.success = success
+
+
 ###############################################################################
 # Crazy plumbing begins here!
 
@@ -575,7 +582,13 @@ def do_damage(event, combatant):
 
 @Die.perform(Combatant)
 def do_die(event, combatant):
-    # TODO player death is a little different...
+    # TODO player death is a little different.  should be a separate component,
+    # probably, instead of special-casing here (yikes)
+    # TODO i am not actually sure if using an exception here is a good idea
+    from flax.entity import Player
+    if combatant.entity.isa(Player):
+        raise GameOver("you died  :(", success=False)
+
     event.world.current_map.remove(combatant.entity)
     # TODO and drop inventory, and/or a corpse
 
