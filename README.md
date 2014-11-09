@@ -15,7 +15,7 @@ You will need:
 
 If you don't know the Python ecosystem, you can pretty much just do this (assuming you have Python 3 and [pip](http://pip-installer.org/) already):
 
-    $ pip install --user -e git+https://github.com/eevee/flax#egg=flax
+    $ pip install --user git+https://github.com/eevee/flax#egg=flax
     $ flax
 
 Or you can run directly from a source checkout with:
