@@ -10,14 +10,23 @@ if sys.version_info < (3, 4):
 
 setup(
     name='flax',
-    version='0.0',
-    description='A roguelike.',
-    #long_description=...
+    version='0.1',
+    description='A roguelike',
+    # long_description=...
     author='Eevee',
     author_email='eevee.flax@veekun.com',
+    url='https://github.com/eevee/flax',
     license='MIT',
-
-    # TODO classifiers and keywords before trying to upload
+    classifiers=[
+        'Development Status :: 2 - Pre-Alpha',
+        'Environment :: Console',
+        'Intended Audience :: Developers',
+        'Intended Audience :: End Users/Desktop',
+        'License :: OSI Approved :: MIT License',
+        'Programming Language :: Python :: 3',
+        'Programming Language :: Python',
+        'Topic :: Games/Entertainment',
+    ],
 
     packages=find_packages(),
     install_requires=backports + [
