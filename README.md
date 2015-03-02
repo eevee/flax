@@ -15,14 +15,12 @@ You will need:
 
 If you don't know the Python ecosystem, you can pretty much just do this (assuming you have Python 3 and [pip](http://pip-installer.org/) already):
 
-    $ pip install --user git+https://github.com/eevee/flax#egg=flax
+    $ pip3 install --user git+https://github.com/eevee/flax#egg=flax
     $ flax
 
 Or you can run directly from a source checkout with:
 
-    python -m flax
-
-Note that you may need to use `pip3` and `python3` above, if Python 3 is not the default Python on your system.
+    python3 -m flax
 
 
 ## Keys
